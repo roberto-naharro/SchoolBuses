@@ -1,0 +1,43 @@
+[h1]School Buses[/h1]
+
+Makes dedicated school bus lines work as real school buses: only students travelling to or from their assigned school may board, and the line can be auto-generated from the school building with a single click.
+
+[h1]What it does[/h1]
+
+In vanilla Cities: Skylines the yellow school bus is a cosmetic skin with no behavioural difference from a regular bus. Anyone boards it. This mod changes that.
+
+[b]Students-only boarding.[/b] When you mark a bus line as a school line, only children and teenagers who are enrolled at the school served by that line may board. Adults, tourists, and students from other schools are turned away and find another route.
+
+[b]Direction-aware.[/b] Outbound students (heading to school) board at any neighbourhood stop. Homebound students (heading home after school) may only board at the school stop itself — exactly how a real school bus works.
+
+[b]One-click route generation.[/b] Click a school or high school building and press Generate Route. The mod reads the school's current student roster, clusters their home locations, and creates a school bus line with well-ordered stops covering the main catchment areas.
+
+[b]Route health tracking.[/b] Student populations shift as children grow up and families move. The mod monitors how well each generated line still covers its school's roster and warns you when coverage drops — with a one-click Regenerate to bring it up to date.
+
+[h1]How to use[/h1]
+
+[list]
+[*]Subscribe and enable the mod plus [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2040656402]Harmony[/url].
+[*]Click any elementary school or high school building.
+[*]Press [b]Generate Route[/b] in the building panel. A school bus line is created automatically.
+[*]You can also mark any existing bus line as a school line manually in the line's info panel.
+[*]When the route health indicator turns orange, press [b]Regenerate[/b] to update the stops.
+[/list]
+
+[h1]Compatibility[/h1]
+
+[list]
+[*]Designed to pair with [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3721119397]Impatient Commuters[/url]. Adults turned away from school stops will balk and reroute naturally.
+[*]Compatible with Improved Public Transport 2 and Transport Lines Manager.
+[*]No known conflicts.
+[/list]
+
+[h1]Requirements[/h1]
+
+[list]
+[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=2040656402]Harmony (Mod Dependency)[/url]. Subscribe and enable this first.
+[/list]
+
+[h1]Source code[/h1]
+
+[url=https://github.com/roberto-naharro/SchoolBuses]github.com/roberto-naharro/SchoolBuses[/url]
