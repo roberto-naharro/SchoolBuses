@@ -71,6 +71,7 @@
     <Compile Include="Data\RouteMetrics.cs" />
     <Compile Include="Integration\SchoolBusBridge.cs" />
     <Compile Include="Integration\ImpatientCommutersBridge.cs" />
+    <Compile Include="Integration\IpteBridge.cs" />
     <Compile Include="HarmonyPatches\HarmonyId.cs" />
     <Compile Include="HarmonyPatches\SchoolBoardingContext.cs" />
     <Compile Include="HarmonyPatches\LoadPassengersPatch.cs" />

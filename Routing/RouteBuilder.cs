@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using ColossalFramework;
 using ColossalFramework.Math;
 using SchoolBuses.Data;
+using SchoolBuses.Integration;
 using SchoolBuses.Util;
 using UnityEngine;
 
@@ -92,6 +93,10 @@ namespace SchoolBuses.Routing
             // (non-destructive; overridable by vanilla tools or IPTE).
             VehicleUtil.ApplyDefaultSchoolBus(lineId);
 
+            // Pin to exactly one bus via IPT if installed (deterministic regardless of line
+            // length); the m_budget above already yields ~1 bus when IPT is absent.
+            IpteBridge.TrySetVehicleCount(lineId, 1);
+
             // Name it "<school> - <street in front of the school>".
             ApplyGeneratedName(lineId, schoolId);
 
@@ -153,6 +158,7 @@ namespace SchoolBuses.Routing
             Log.DebugLog("Regenerated line " + lineId + " in place with " + index
                 + " stops; school stop node = " + schoolStopNode);
 
+            IpteBridge.TrySetVehicleCount(lineId, 1);
             LineFinalizer.Schedule(lineId);
 
             result.Success = true;
