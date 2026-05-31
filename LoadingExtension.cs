@@ -1,5 +1,6 @@
 using ICities;
 using SchoolBuses.Data;
+using SchoolBuses.Integration;
 using SchoolBuses.UI;
 using SchoolBuses.Util;
 using UnityEngine;
@@ -25,17 +26,24 @@ namespace SchoolBuses
             _uiObject.AddComponent<SchoolLinePanelExtender>();
             _uiObject.AddComponent<SchoolBuildingPanelExtender>();
             Log.Info("UI extenders mounted");
+
+            // Plug into Impatient Commuters' generic exemption API (no-op if it's absent).
+            ImpatientCommutersBridge.Register();
         }
 
         public override void OnLevelUnloading()
         {
             base.OnLevelUnloading();
+            ImpatientCommutersBridge.Unregister();
             if (_uiObject != null)
             {
                 Object.Destroy(_uiObject);
                 _uiObject = null;
             }
             SchoolLineRegistry.Clear();
+            BoardingStats.Clear();
+            RouteMetrics.Clear();
+            LineFinalizer.Clear();
         }
     }
 }

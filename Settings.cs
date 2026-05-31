@@ -19,10 +19,22 @@ namespace SchoolBuses
 
         public bool Enabled = true;
 
-        // Route generation tunables (design Q#6/#7).
-        public float ClusterRadius = 300f;     // metres; cluster radius and stop coverage radius
-        public int MaxStops = 10;               // including the school terminal stop
-        public float CoverageThreshold = 0.70f; // below this a line is flagged stale
+        // Route generation tunables. The stop count emerges from these two knobs — homes
+        // within ClusterRadius form one neighbourhood, and a neighbourhood only gets a stop if
+        // it has at least MinClusterStudents students.
+        public float ClusterRadius = 400f;       // metres; max radius of a pickup neighbourhood
+        public int MinClusterStudents = 10;      // a neighbourhood needs this many students for a stop
+        public float CoverageThreshold = 0.70f;  // below this a line is flagged stale (health warning)
+
+        // When on, the generator auto-targets a sensible number of stops from the school's
+        // student count and the bus's passenger capacity (scaled because students don't all
+        // travel at once), keeping the densest neighbourhoods. The two manual sliders below are
+        // disabled while this is on.
+        public bool DynamicStopCount = true;
+
+        // Make ineligible commuters who pathfind to a school stop give up and re-route,
+        // instead of piling up waiting for a bus that will never pick them up.
+        public bool EvictIneligibleRiders = true;
 
         public bool DebugLogging =
 #if DEBUG

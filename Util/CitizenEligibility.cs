@@ -36,14 +36,14 @@ namespace SchoolBuses.Util
             if (citizens[citizenId].m_workBuilding != line.SchoolBuildingId)
                 return false;
 
-            // Morning leg: heading to the school — board at any neighbourhood stop.
+            // A student of this school may ride to school OR home, boarding at any stop on
+            // the line. (We originally limited the home leg to the school stop, but that
+            // stopped kids using the bus to get home at all and got them wrongly evicted at
+            // neighbourhood stops — so the gate is relaxed to "to school or home, any stop".)
+            // currentStop is kept in the signature for callers but no longer constrains this.
             if (targetBuilding == line.SchoolBuildingId)
                 return true;
-
-            // Afternoon leg: heading home — board only at the school stop. This also
-            // cleanly rejects leisure→home trips at intermediate stops.
-            if (targetBuilding == citizens[citizenId].m_homeBuilding
-                && currentStop == line.SchoolStopNode)
+            if (targetBuilding == citizens[citizenId].m_homeBuilding)
                 return true;
 
             return false;

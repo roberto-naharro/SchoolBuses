@@ -17,6 +17,24 @@ namespace SchoolBuses.Util
         // `found` reports whether a road was located.
         internal static Vector3 SnapToRoad(Vector3 position, float maxDistance, out bool found)
         {
+            Vector3 point;
+            ushort seg = Nearest(position, maxDistance, out point);
+            found = seg != 0;
+            return found ? point : position;
+        }
+
+        // Returns the id of the nearest car-drivable road segment within maxDistance, or 0.
+        // Used to look up the street name in front of a building.
+        internal static ushort FindNearestRoadSegment(Vector3 position, float maxDistance)
+        {
+            Vector3 point;
+            return Nearest(position, maxDistance, out point);
+        }
+
+        // Core grid scan: finds the nearest drivable road segment and the closest point on
+        // its centreline. Returns the segment id (0 if none) and sets `point` accordingly.
+        private static ushort Nearest(Vector3 position, float maxDistance, out Vector3 point)
+        {
             NetManager nm = Singleton<NetManager>.instance;
             var segments = nm.m_segments.m_buffer;
             var nodes = nm.m_nodes.m_buffer;
@@ -26,8 +44,8 @@ namespace SchoolBuses.Util
             int cz = Mathf.Clamp((int)(position.z / CellSize + HalfOffset), 0, GridResolution - 1);
 
             float bestSqr = maxDistance * maxDistance;
-            Vector3 best = position;
-            found = false;
+            point = position;
+            ushort bestSeg = 0;
 
             for (int dz = -cellRange; dz <= cellRange; dz++)
             {
@@ -43,8 +61,12 @@ namespace SchoolBuses.Util
                     while (segId != 0)
                     {
                         NetInfo info = segments[segId].Info;
+                        // Require a car-drivable road. Service.Road also covers wall-to-wall
+                        // pedestrian streets (Plazas & Promenades) which have NO vehicle lanes;
+                        // snapping a stop there gives a line the bus can never path → incomplete.
                         if (info != null && info.m_class != null
-                            && info.m_class.m_service == ItemClass.Service.Road)
+                            && info.m_class.m_service == ItemClass.Service.Road
+                            && (info.m_hasForwardVehicleLanes || info.m_hasBackwardVehicleLanes))
                         {
                             Vector3 a = nodes[segments[segId].m_startNode].m_position;
                             Vector3 b = nodes[segments[segId].m_endNode].m_position;
@@ -53,8 +75,8 @@ namespace SchoolBuses.Util
                             if (sqr < bestSqr)
                             {
                                 bestSqr = sqr;
-                                best = p;
-                                found = true;
+                                point = p;
+                                bestSeg = segId;
                             }
                         }
                         segId = segments[segId].m_nextGridSegment;
@@ -62,7 +84,7 @@ namespace SchoolBuses.Util
                     }
                 }
             }
-            return best;
+            return bestSeg;
         }
 
         private static Vector3 ClosestPointOnSegment(Vector3 p, Vector3 a, Vector3 b)

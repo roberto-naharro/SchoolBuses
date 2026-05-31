@@ -59,6 +59,18 @@ namespace SchoolBuses.Util
             return CollectStudents(schoolId, null, null);
         }
 
+        // The school's student capacity (SchoolAI.m_studentCount), so the panel can show
+        // "enrolled / capacity" — generating before the school has filled gives a thinner
+        // route, so it helps to wait until enrolment is near capacity.
+        internal static int GetStudentCapacity(ushort schoolId)
+        {
+            if (schoolId == 0)
+                return 0;
+            BuildingInfo info = Singleton<BuildingManager>.instance.m_buildings.m_buffer[schoolId].Info;
+            SchoolAI ai = info != null ? info.m_buildingAI as SchoolAI : null;
+            return ai != null ? ai.m_studentCount : 0;
+        }
+
         // Core roster walk. Optionally appends each student's home building to
         // `homes` and/or each student id to `citizenIds`. Returns the student count.
         internal static int CollectStudents(ushort schoolId, List<ushort> homes, List<uint> citizenIds)
@@ -78,11 +90,11 @@ namespace SchoolBuses.Util
             {
                 if ((units[unitId].m_flags & CitizenUnit.Flags.Student) != CitizenUnit.Flags.None)
                 {
-                    AddStudent(units[unitId].m_citizen0, citizens, homes, citizenIds, ref count);
-                    AddStudent(units[unitId].m_citizen1, citizens, homes, citizenIds, ref count);
-                    AddStudent(units[unitId].m_citizen2, citizens, homes, citizenIds, ref count);
-                    AddStudent(units[unitId].m_citizen3, citizens, homes, citizenIds, ref count);
-                    AddStudent(units[unitId].m_citizen4, citizens, homes, citizenIds, ref count);
+                    AddStudent(units[unitId].m_citizen0, citizens, buildings, homes, citizenIds, ref count);
+                    AddStudent(units[unitId].m_citizen1, citizens, buildings, homes, citizenIds, ref count);
+                    AddStudent(units[unitId].m_citizen2, citizens, buildings, homes, citizenIds, ref count);
+                    AddStudent(units[unitId].m_citizen3, citizens, buildings, homes, citizenIds, ref count);
+                    AddStudent(units[unitId].m_citizen4, citizens, buildings, homes, citizenIds, ref count);
                 }
                 unitId = units[unitId].m_nextUnit;
                 if (++guard > MaxUnitIterations)
@@ -95,7 +107,7 @@ namespace SchoolBuses.Util
         }
 
         private static void AddStudent(
-            uint citizenId, Citizen[] citizens,
+            uint citizenId, Citizen[] citizens, Building[] buildings,
             List<ushort> homes, List<uint> citizenIds, ref int count)
         {
             if (citizenId == 0)
@@ -106,6 +118,10 @@ namespace SchoolBuses.Util
                 return;
             ushort home = citizens[citizenId].m_homeBuilding;
             if (home == 0)
+                return;
+            // Skip students who live outside the city (their "home" is an outside
+            // connection) — a local bus route can't pick them up there.
+            if ((buildings[home].m_flags & Building.Flags.IncomingOutgoing) != Building.Flags.None)
                 return;
             count++;
             if (homes != null)

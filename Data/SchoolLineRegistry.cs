@@ -19,6 +19,10 @@ namespace SchoolBuses.Data
             new Dictionary<ushort, SchoolLineData>();
         private static readonly object Sync = new object();
 
+        // Cheap hot-path guard so per-frame scanners can skip entirely when no school
+        // lines exist. Volatile int is enough (monotonic-ish; exactness not required).
+        public static bool AnyLines => Lines.Count > 0;
+
         public static bool IsSchoolLine(ushort lineId)
         {
             // No lock on the read: Dictionary reads are safe against concurrent reads,
@@ -48,6 +52,15 @@ namespace SchoolBuses.Data
             {
                 if (Lines.Remove(lineId))
                     Log.DebugLog("Unregistered school line " + lineId);
+            }
+        }
+
+        // Snapshot of every registered school line id (used for periodic health logging).
+        public static List<ushort> GetAllLineIds()
+        {
+            lock (Sync)
+            {
+                return new List<ushort>(Lines.Keys);
             }
         }
 

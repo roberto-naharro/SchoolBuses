@@ -13,8 +13,9 @@ namespace SchoolBuses.UI
     // Generate Route, and a per-line Regenerate when coverage drifts.
     public class SchoolBuildingPanelExtender : MonoBehaviour
     {
-        private const float Width = 232f;
+        private const float Width = 272f;
         private const float Pad = 10f;
+        private const float TitleBarOffset = 60f; // align dock with the building panel title bar
         private const int RefreshEveryTicks = 120; // ~2 s at 60 fps
 
         private bool _initialized;
@@ -55,12 +56,21 @@ namespace SchoolBuses.UI
             }
 
             if (!_panel.isVisible) _panel.Show();
-            _panel.relativePosition = new Vector3(_wip.component.width + 1f, 0f);
+            // CityServiceWorldInfoPanel's component origin sits above its visible window,
+            // so a child docked at y=0 floats too high. Offset down to align with the
+            // building panel's title bar (IPT uses the same workaround on this panel).
+            _panel.relativePosition = new Vector3(_wip.component.width + 1f, TitleBarOffset);
 
             int lineCount = SchoolLineRegistry.GetLinesForSchool(buildingId).Count;
-            bool changed = buildingId != _cachedBuilding || lineCount != _cachedLineCount;
+            bool buildingChanged = buildingId != _cachedBuilding;
+            bool changed = buildingChanged || lineCount != _cachedLineCount;
             if (changed || (++_tick % RefreshEveryTicks) == 0)
             {
+                // The status line ("Route created.", errors) is per-action feedback for ONE
+                // school. Clear it when the panel moves to a different building so it doesn't
+                // linger on every other school's window.
+                if (buildingChanged && _statusLabel != null)
+                    _statusLabel.text = string.Empty;
                 _cachedBuilding = buildingId;
                 _cachedLineCount = lineCount;
                 Refresh(buildingId);
@@ -123,7 +133,10 @@ namespace SchoolBuses.UI
         private void Refresh(ushort buildingId)
         {
             int students = EducationBuildingUtil.GetEnrolledStudentCount(buildingId);
-            _enrolled.text = students + (students == 1 ? " student enrolled" : " students enrolled");
+            int capacity = EducationBuildingUtil.GetStudentCapacity(buildingId);
+            _enrolled.text = capacity > 0
+                ? students + " / " + capacity + " students enrolled"
+                : students + (students == 1 ? " student enrolled" : " students enrolled");
 
             ClearRows();
             List<ushort> lines = SchoolLineRegistry.GetLinesForSchool(buildingId);
@@ -134,7 +147,7 @@ namespace SchoolBuses.UI
                 AddLineRow(buildingId, lineId, radius, threshold);
 
             // Layout the action button + status below the (variable-height) list.
-            float listBottom = _lineList.relativePosition.y + Mathf.Max(28f, _rows.Count * 30f);
+            float listBottom = _lineList.relativePosition.y + Mathf.Max(28f, _rows.Count * 50f);
             _generateButton.relativePosition = new Vector3(Pad, listBottom + 8f);
             _statusLabel.relativePosition = new Vector3(Pad, listBottom + 44f);
             _panel.height = listBottom + 80f;
@@ -142,23 +155,29 @@ namespace SchoolBuses.UI
 
         private void AddLineRow(ushort buildingId, ushort lineId, float radius, float threshold)
         {
-            float coverage = CoverageTracker.ComputeCoverage(lineId, buildingId, radius);
+            LineHealthResult health = LineHealth.Evaluate(lineId, buildingId, radius, threshold);
             int stops = Singleton<TransportManager>.instance.m_lines.m_buffer[lineId].CountStops(lineId);
             string name = Singleton<TransportManager>.instance.GetLineName(lineId);
-            bool stale = coverage < threshold;
+            BoardingStats.Counts counts = BoardingStats.Get(lineId);
+            bool problem = health.IsProblem;
 
             UIButton row = UIHelper.CreateButton(_lineList);
-            row.size = new Vector2(_lineList.width, 26f);
+            row.size = new Vector2(_lineList.width, 46f);
             row.textHorizontalAlignment = UIHorizontalAlignment.Left;
-            row.textScale = 0.75f;
-            row.text = (stale ? "⚠ " : "● ") + name + "  " + stops + " stops  "
-                       + Mathf.RoundToInt(coverage * 100f) + "%";
-            row.textColor = stale ? UIHelper.Amber : UIHelper.Green;
+            row.textVerticalAlignment = UIVerticalAlignment.Top;
+            row.textScale = 0.68f;
+            row.wordWrap = true;
+            row.text = (problem ? "⚠ " : "● ") + name + "\n"
+                       + stops + " stops · " + Mathf.RoundToInt(health.Coverage * 100f) + "% covered\n"
+                       + "served " + counts.Served + " · turned away " + counts.TurnedAway;
+            row.textColor = problem ? UIHelper.Amber : UIHelper.Green;
+            row.tooltip = health.IsProblem ? health.Message : "Coverage and ridership look healthy.";
             ushort captured = lineId;
             row.eventClick += (c, p) => OpenLine(captured);
             _rows.Add(row);
 
-            if (stale)
+            // Offer Regenerate when coverage has drifted (not for transient traffic issues).
+            if (health.Status == HealthStatus.StaleCoverage)
             {
                 UIButton regen = UIHelper.CreateButton(row);
                 regen.text = "⟳";
@@ -180,6 +199,7 @@ namespace SchoolBuses.UI
             if (_busy) return;
             ushort buildingId = CurrentBuilding();
             if (buildingId == 0) return;
+            Util.Log.DebugLog("User clicked Generate Route for school " + buildingId);
             _busy = true;
             _generateButton.text = "Generating…";
             _statusLabel.text = string.Empty;
@@ -189,6 +209,7 @@ namespace SchoolBuses.UI
         private void StartRegenerate(ushort lineId, ushort buildingId)
         {
             if (_busy) return;
+            Util.Log.DebugLog("User clicked Regenerate for line " + lineId + " (school " + buildingId + ")");
             _busy = true;
             _statusLabel.text = "Regenerating…";
             RouteGenerator.Regenerate(lineId, buildingId, OnGenerated);
@@ -196,6 +217,8 @@ namespace SchoolBuses.UI
 
         private void OnGenerated(RouteBuilder.Result result)
         {
+            Util.Log.DebugLog("Generation result: success=" + result.Success + " line=" + result.LineId
+                + " noDepot=" + result.NoDepot + (result.Error != null ? " error=" + result.Error : ""));
             _busy = false;
             _generateButton.text = "+ Generate Route";
             if (result.Success)
