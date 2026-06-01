@@ -54,13 +54,6 @@ namespace SchoolBuses
             general.AddCheckbox("Enable mod", s.Enabled,
                 v => { Settings.Instance.Enabled = v; Settings.Save(); });
 
-            var evict = (UIComponent)general.AddCheckbox(
-                "Send non-students away from school stops", s.EvictIneligibleRiders,
-                v => { Settings.Instance.EvictIneligibleRiders = v; Settings.Save(); });
-            evict.tooltip =
-                "Commuters who can't board a school bus will give up and find another route\n"
-                + "instead of piling up at the stop forever.";
-
             var routing = helper.AddGroup("Route generation");
 
             // Declared first so the checkbox handler (below) can enable/disable them; assigned
@@ -81,62 +74,75 @@ namespace SchoolBuses
                 + "passenger capacity (accounting for students not all travelling at once).\n"
                 + "Turn off for manual control with the two sliders below.";
 
-            radius = (UIComponent)routing.AddSlider("Maximum cluster radius (m)", 150f, 800f, 25f, s.ClusterRadius,
+            radius = (UIComponent)routing.AddSlider("Cluster radius (m)", 150f, 800f, 25f, s.ClusterRadius,
                 v => { Settings.Instance.ClusterRadius = v; Settings.Save(); });
             radius.tooltip = "Student homes within this distance of each other form one pickup\n"
                 + "neighbourhood (one stop). Larger = fewer, bigger stops.";
+            routing.AddSpace(6);
 
-            minStudents = (UIComponent)routing.AddSlider("Minimum students per cluster", 1f, 40f, 1f, s.MinClusterStudents,
+            minStudents = (UIComponent)routing.AddSlider("Min students / cluster", 1f, 40f, 1f, s.MinClusterStudents,
                 v => { Settings.Instance.MinClusterStudents = UnityEngine.Mathf.RoundToInt(v); Settings.Save(); });
             minStudents.tooltip = "A neighbourhood only gets a stop if at least this many students\n"
                 + "live in it. Higher = fewer stops (small clusters are skipped).";
+            routing.AddSpace(6);
 
             // Reflect the saved state: the manual knobs are greyed out while auto-tune is on.
             SetManualKnobsEnabled(radius, minStudents, !s.DynamicStopCount);
 
-            var scaleMin = (UIComponent)routing.AddCheckbox("Scale min-students by school capacity", s.ScaleMinByCapacity,
+            var scaleMin = (UIComponent)routing.AddCheckbox("Scale min by capacity", s.ScaleMinByCapacity,
                 v => { Settings.Instance.ScaleMinByCapacity = v; Settings.Save(); });
             scaleMin.tooltip = "When on, the 'minimum students per cluster' is set per school from its capacity\n"
                 + "(small schools use fewer so they still get stops; big schools use more to limit buses).\n"
                 + "Works for modded school sizes. Set the 1000-capacity reference below.";
 
-            var capMin = (UIComponent)routing.AddSlider("Min students per cluster at 1000 capacity", 2f, 20f, 1f, s.CapacityMinFactor * 1000f,
+            var capMin = (UIComponent)routing.AddSlider("Students / cluster @ 1000 cap", 2f, 20f, 1f, s.CapacityMinFactor * 1000f,
                 v => { Settings.Instance.CapacityMinFactor = v / 1000f; Settings.Save(); });
             capMin.tooltip = "Reference for capacity scaling: a 1000-capacity school uses this many students\n"
                 + "per cluster; others scale linearly (clamped 4–14). Only used when scaling is on.";
+            routing.AddSpace(6);
 
-            var autoRegen = (UIComponent)routing.AddCheckbox("Auto-regenerate routes when coverage drifts", s.AutoRegenerate,
+            var autoRegen = (UIComponent)routing.AddCheckbox("Auto-regenerate on coverage drift", s.AutoRegenerate,
                 v => { Settings.Instance.AutoRegenerate = v; Settings.Save(); });
             autoRegen.tooltip = "Periodically re-check each school: if students have moved so its routes now cover\n"
                 + "fewer than the target below, automatically regenerate that school (current settings),\n"
                 + "so stops follow the students. Turn OFF to regenerate lines only by hand.";
 
-            var covTarget = (UIComponent)routing.AddSlider("Auto-regenerate below coverage (%)", 0f, 80f, 5f, s.MinCoverageTarget * 100f,
+            var covTarget = (UIComponent)routing.AddSlider("Auto-regen below coverage (%)", 0f, 80f, 5f, s.MinCoverageTarget * 100f,
                 v => { Settings.Instance.MinCoverageTarget = v / 100f; Settings.Save(); });
             covTarget.tooltip = "Coverage of bus-needing students below which auto-regenerate kicks in for a school.\n"
                 + "0 = never. Only used when 'Auto-regenerate' above is on.";
+            routing.AddSpace(6);
 
-            var routeLen = (UIComponent)routing.AddSlider("Max pickup-loop length per route (m)", 800f, 4000f, 200f, s.MaxRouteLength,
+            var routeLen = (UIComponent)routing.AddSlider("Max pickup-loop / route (m)", 800f, 4000f, 200f, s.MaxRouteLength,
                 v => { Settings.Instance.MaxRouteLength = v; Settings.Save(); });
             routeLen.tooltip = "Per-route budget for driving BETWEEN pickups (the trunk to/from the\n"
                 + "school is excluded). A school's stops split into several short one-bus routes so\n"
                 + "no route's pickup loop exceeds this. Nearby neighbourhoods chain into one route;\n"
                 + "spread-out ones split. Shorter = more, shorter routes (one bus keeps up better).";
+            routing.AddSpace(6);
 
-            var maxRoutes = (UIComponent)routing.AddSlider("Trim routes above (per 1000 capacity, 0 = never)", 0f, 20f, 1f, s.MaxRoutesPerSchool,
+            var maxRoutes = (UIComponent)routing.AddSlider("Trim routes above (per 1000 cap)", 0f, 20f, 1f, s.MaxRoutesPerSchool,
                 v => { Settings.Instance.MaxRoutesPerSchool = UnityEngine.Mathf.RoundToInt(v); Settings.Save(); });
             maxRoutes.tooltip = "If a school exceeds this many routes (SCALED by its capacity, clamped 3–16:\n"
                 + "so ~10 for a 1000-capacity school, ~3 for a 300 one), drop neighbourhoods beyond the\n"
                 + "catchment distance below and re-route. Bounds only spread-out outliers; compact\n"
                 + "schools keep full coverage. 0 = never trim (route count follows min-students).";
+            routing.AddSpace(6);
 
-            var catchment = (UIComponent)routing.AddSlider("Catchment distance when trimming (m)", 1000f, 5000f, 250f, s.MaxCatchmentDistance,
+            var catchment = (UIComponent)routing.AddSlider("Catchment distance (m)", 1000f, 5000f, 250f, s.MaxCatchmentDistance,
                 v => { Settings.Instance.MaxCatchmentDistance = v; Settings.Save(); });
             catchment.tooltip = "Used only when the route trigger above fires: neighbourhoods farther than this from\n"
                 + "the school are dropped (too far for a school bus). Ignored if the trigger is 0.";
+            routing.AddSpace(6);
 
             var coverage = (UIComponent)routing.AddSlider("Coverage warning threshold (%)", 30f, 95f, 5f, s.CoverageThreshold * 100f,
                 v => { Settings.Instance.CoverageThreshold = v / 100f; Settings.Save(); });
+            routing.AddSpace(6);
+
+            // A touch smaller so the longer rows fit comfortably.
+            foreach (UIComponent ctl in new[] { radius, minStudents, scaleMin, capMin, autoRegen,
+                covTarget, routeLen, maxRoutes, catchment, coverage, dynamic })
+                ShrinkLabel(ctl);
 
             // Restore the recommended (experiment-tuned) defaults. Setting each control's value fires
             // its handler, which writes Settings + saves.
@@ -173,13 +179,9 @@ namespace SchoolBuses
             city.AddButton("Generate routes for ALL schools", () =>
             {
                 ConfirmPanel.ShowModal("Generate routes for all schools",
-                    "This DELETES every existing school bus route and rebuilds a fresh set for "
-                    + "EVERY school in the city.\n\n"
-                    + "Be aware:\n"
-                    + "(1) It can create a lot of lines (possibly near the game's ~256 transport-line "
-                    + "limit; generation stops before the limit and tells you how many were skipped).\n"
-                    + "(2) Each route runs ONE bus (without enough bus depots, many routes will sit idle).\n"
-                    + "(3) Creating this many lines at once can briefly slow the game.\n\n"
+                    "Deletes all existing school routes and rebuilds a set for every school.\n\n"
+                    + "It may create many lines (stops before the ~256 limit), each needs a bus "
+                    + "(too few depots = idle routes), and can briefly slow the game.\n\n"
                     + "Continue?",
                     (comp, ret) =>
                     {
@@ -224,6 +226,29 @@ namespace SchoolBuses
             c.opacity = enabled ? 1f : 0.35f;
             if (c.parent != null)
                 c.parent.opacity = enabled ? 1f : 0.35f; // dim the whole row (label + slider)
+        }
+
+        // Shrink a control's label a touch so the longer option rows fit. A checkbox carries its
+        // label as a child; a slider's label is a sibling in its row panel — so scan both. Best-effort.
+        private const float OptionLabelScale = 0.85f;
+        private static void ShrinkLabel(UIComponent c)
+        {
+            if (c == null)
+                return;
+            ScaleChildLabels(c);
+            ScaleChildLabels(c.parent);
+        }
+
+        private static void ScaleChildLabels(UIComponent parent)
+        {
+            if (parent == null)
+                return;
+            foreach (UIComponent child in parent.components)
+            {
+                var label = child as UILabel;
+                if (label != null)
+                    label.textScale = OptionLabelScale;
+            }
         }
     }
 }

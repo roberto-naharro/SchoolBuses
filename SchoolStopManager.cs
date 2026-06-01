@@ -144,10 +144,11 @@ namespace SchoolBuses
             if ((frameNow & (uint)StepMask) == StepMask)
                 AutoRegenScan(frameNow);
 
-            bool evict = Settings.Instance.EvictIneligibleRiders;
+            // Evicting non-students from a school stop is the defining behaviour of a school line
+            // (otherwise it's just a normal line — the player can untick the school-line flag for
+            // that). So it's always on; only the optional debug reporting is conditional.
+            const bool evict = true;
             bool report = Log.DebugEnabled;
-            if (!evict && !report)
-                return;
 
             uint step = Singleton<SimulationManager>.instance.m_currentFrameIndex & (uint)StepMask;
             uint start = step * (uint)StepSize;

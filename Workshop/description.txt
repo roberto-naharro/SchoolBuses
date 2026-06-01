@@ -1,41 +1,45 @@
 [h1]School Buses[/h1]
 
-Makes dedicated school bus lines work as real school buses: only students travelling to or from their assigned school may board, and the line can be auto-generated from the school building with a single click.
+Turn the cosmetic yellow school bus into a real school bus service: only enrolled students ride it, and a school's routes are generated, and kept up to date, with a single click.
 
 [h1]What it does[/h1]
 
-In vanilla Cities: Skylines the yellow school bus is a cosmetic skin with no behavioural difference from a regular bus. Anyone boards it. This mod changes that.
+In vanilla Cities: Skylines the school bus is just a skin, so anyone boards it. This mod makes school bus lines actually carry students.
 
-[b]Students-only boarding.[/b] When you mark a bus line as a school line, only children and teenagers who are enrolled at the school served by that line may board. Adults, tourists, and students from other schools are turned away and find another route.
+[b]Students only.[/b] On a line you mark as a school line, only children and teenagers enrolled at that school may board. Adults, tourists and other schools' students are turned away and find another route.
 
-[b]Direction-aware.[/b] Outbound students (heading to school) board at any neighbourhood stop. Homebound students (heading home after school) may only board at the school stop itself — exactly how a real school bus works.
+[b]Like a real school run.[/b] Students board at any neighbourhood stop on the way to school, and only at the school itself on the way home.
 
-[b]One-click route generation.[/b] Click a school or high school building and press Generate Route. The mod reads the school's current student roster, clusters their home locations, and creates a school bus line with well-ordered stops covering the main catchment areas.
+[b]One click per school.[/b] Click a school or high school and press Generate Routes. The mod reads the current student roster and lays out tidy bus routes covering where the students actually live, splitting a big school into several short routes (one bus each), just like a real district.
 
-[b]Route health tracking.[/b] Student populations shift as children grow up and families move. The mod monitors how well each generated line still covers its school's roster and warns you when coverage drops — with a one-click Regenerate to bring it up to date.
+[b]One click for the whole city.[/b] Prefer to do it all at once? Generate routes for every school in the city from the mod options (with a heads-up about how many lines and buses that means).
+
+[b]Routes that keep themselves current.[/b] Students grow up and families move. The mod watches each school's coverage and automatically regenerates routes that have drifted out of date, so stops keep following the students. Don't want that? Turn it off and manage lines by hand.
+
+[b]Sensible by default, tunable if you want.[/b] The defaults were tuned in-game for good coverage and ridership across school sizes (and work with custom modded schools of any size). Sliders let you trade coverage against bus count, change route length, and more, with a one-click "restore recommended defaults".
 
 [h1]How to use[/h1]
 
 [list]
-[*]Subscribe and enable the mod plus [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2040656402]Harmony[/url].
-[*]Click any elementary school or high school building.
-[*]Press [b]Generate Route[/b] in the building panel. A school bus line is created automatically.
-[*]You can also mark any existing bus line as a school line manually in the line's info panel.
-[*]When the route health indicator turns orange, press [b]Regenerate[/b] to update the stops.
+[*]Subscribe and enable this mod plus [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2040656402]Harmony[/url].
+[*]Click an elementary school or high school and press [b]Generate Routes[/b].
+[*]Or route the whole city from the mod options under [b]City-wide routes[/b].
+[*]Make sure you have a bus depot (or a few) so the buses can spawn. Each route runs one bus.
+[*]You can also mark any existing bus line as a school line in its info panel.
 [/list]
 
 [h1]Compatibility[/h1]
 
 [list]
-[*]Designed to pair with [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3721119397]Impatient Commuters[/url]. Adults turned away from school stops will balk and reroute naturally.
-[*]Compatible with Improved Public Transport 2 and Transport Lines Manager.
-[*]No known conflicts.
+[*]Improved Public Transport 2: used (when present) to pin exactly one bus per route. Recommended.
+[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3721119397]Impatient Commuters[/url]: pairs cleanly; students waiting for their school bus won't give up.
+[*]Designed to be non-destructive and to layer on top of vanilla; no known conflicts with other transit mods.
 [/list]
 
 [h1]Requirements[/h1]
 
 [list]
-[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=2040656402]Harmony (Mod Dependency)[/url]. Subscribe and enable this first.
+[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=2040656402]Harmony (Mod Dependency)[/url]: subscribe and enable this first.
 [/list]
 
 [h1]Source code[/h1]

@@ -72,9 +72,6 @@ namespace SchoolBuses
                                              // OFF by default: the trim cuts coverage→ridership; it's an
                                              // opt-in for budget-limited players who want fewer buses.
 
-        // Make ineligible commuters who pathfind to a school stop give up and re-route,
-        // instead of piling up waiting for a bus that will never pick them up.
-        public bool EvictIneligibleRiders = true;
 
         public bool DebugLogging =
 #if DEBUG
