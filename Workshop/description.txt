@@ -16,7 +16,7 @@ In vanilla Cities: Skylines the school bus is just a skin, so anyone boards it. 
 
 [b]Routes that keep themselves current.[/b] Students grow up and families move. The mod watches each school's coverage and automatically regenerates routes that have drifted out of date, so stops keep following the students. Don't want that? Turn it off and manage lines by hand.
 
-[b]Sensible by default, tunable if you want.[/b] The defaults were tuned in-game for good coverage and ridership across school sizes (and work with custom modded schools of any size). Sliders let you trade coverage against bus count, change route length, and more, with a one-click "restore recommended defaults".
+[b]Sensible by default, tunable if you want.[/b] The defaults were tuned in-game for good coverage and ridership across school sizes (and work with custom modded schools of any size). Sliders let you trade coverage against bus count, change route length, and more, with a one-click 'restore recommended defaults'.
 
 [h1]Quick start: make a bus line students-only[/h1]
 

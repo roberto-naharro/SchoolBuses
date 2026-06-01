@@ -13,7 +13,11 @@ if not item_id:
 
 desc_path = os.path.join(workspace, 'Workshop', 'description.txt')
 with open(desc_path, 'r') as f:
-    description = f.read().replace('\\', '\\\\').replace('"', '\\"').replace('\r', '')
+    # steamcmd's workshop_build_item KeyValues parser does NOT honour backslash escapes:
+    # a literal double-quote ends the value (so `\"` leaves a stray `\` and truncates the page).
+    # There is no working escape, so straight double-quotes become single quotes, and backslashes
+    # are left as-is (a literal backslash renders fine). CRs stripped for safety.
+    description = f.read().replace('\r', '').replace('"', "'")
 
 vdf = (
     '"workshopitem"\n'
