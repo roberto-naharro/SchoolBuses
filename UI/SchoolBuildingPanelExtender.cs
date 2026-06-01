@@ -261,6 +261,12 @@ namespace SchoolBuses.UI
 
             float y = ListTop + (lines.Count > 0 ? listH + 8f : 0f);
             _generateButton.relativePosition = new Vector3(Pad, y);
+            // Generate is additive — block it once routes exist (it would stack more on top).
+            // Use Regenerate (rebuild) or Delete instead.
+            _generateButton.isEnabled = lines.Count == 0;
+            _generateButton.tooltip = lines.Count == 0
+                ? "Create bus routes from this school's current student roster."
+                : "Routes already exist — use Regenerate All or Delete All Routes.";
             y += 38f;
             if (lines.Count > 0)
             {
@@ -320,6 +326,13 @@ namespace SchoolBuses.UI
             if (_busy) return;
             ushort buildingId = CurrentBuilding();
             if (buildingId == 0) return;
+            // Defensive: Generate is additive, so refuse if the school already has routes.
+            if (SchoolLineRegistry.GetLinesForSchool(buildingId).Count > 0)
+            {
+                _statusLabel.textColor = UIHelper.Amber;
+                _statusLabel.text = "Routes already exist — use Regenerate or Delete first.";
+                return;
+            }
             Util.Log.DebugLog("User clicked Generate Route for school " + buildingId);
             _regenArmed = false;
             _deleteArmed = false;
