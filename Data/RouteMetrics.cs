@@ -21,6 +21,8 @@ namespace SchoolBuses.Data
             public float Coverage;   // Covered / Considered
             public float Fitness;    // winning weighted score (NaN for manual mode)
             public int Capacity;     // school max students at generation time
+            public float PickupLoop; // per-route inter-stop budget used (m)
+            public int Combo;        // experiment combo id (0 = normal generation)
         }
 
         private static readonly Dictionary<ushort, GenRecord> Records = new Dictionary<ushort, GenRecord>();

@@ -12,12 +12,37 @@ namespace SchoolBuses.Routing
     // several short routes (like a real district), each pinned to one bus.
     internal static class RouteGenerator
     {
+        // The generation knobs for one build: normally the user's Settings, but the experiment
+        // harness overrides them per school with an assigned combo.
+        private struct BuildParams
+        {
+            public float Radius;
+            public int Min;
+            public bool Dynamic;
+            public float Pickup;
+            public int MaxRoutes; // 0 = uncapped
+            public int Combo;     // 0 = normal generation
+        }
+
+        private static BuildParams SettingsParams()
+        {
+            return new BuildParams
+            {
+                Radius = Settings.Instance.ClusterRadius,
+                Min = Settings.Instance.MinClusterStudents,
+                Dynamic = Settings.Instance.DynamicStopCount,
+                Pickup = Settings.Instance.MaxRouteLength,
+                MaxRoutes = Settings.Instance.MaxRoutesPerSchool,
+                Combo = 0,
+            };
+        }
+
         // Generate the full set of routes for a school. `onComplete` runs on the main thread.
         internal static void Generate(ushort schoolId, Action<RouteBuilder.Result> onComplete)
         {
             Singleton<SimulationManager>.instance.AddAction(() =>
             {
-                RouteBuilder.Result result = BuildSet(schoolId);
+                RouteBuilder.Result result = BuildSet(schoolId, SettingsParams());
                 MainThread(() => onComplete(result));
             });
         }
@@ -32,8 +57,160 @@ namespace SchoolBuses.Routing
             {
                 int removed = ReleaseSchoolLines(schoolId);
                 Log.DebugLog("Regenerate school " + schoolId + ": released " + removed + " existing line(s)");
-                RouteBuilder.Result result = BuildSet(schoolId);
+                RouteBuilder.Result result = BuildSet(schoolId, SettingsParams());
                 MainThread(() => onComplete(result));
+            });
+        }
+
+        // EXPERIMENT: generate routes for every school that has none yet, assigning each the next
+        // combo from `Experiment` (so one session measures many settings). `onComplete(summary)`
+        // runs on the main thread.
+        internal static void GenerateAllSchoolsExperiment(Action<string> onComplete)
+        {
+            Singleton<SimulationManager>.instance.AddAction(() =>
+            {
+                // Fixed sample: first N elementary + first M high schools by building id (so the
+                // SAME schools every run). Only those with no routes yet.
+                var elem = new List<ushort>();
+                var high = new List<ushort>();
+                foreach (ushort s in EducationBuildingUtil.AllSchools())
+                {
+                    if (Data.SchoolLineRegistry.GetLinesForSchool(s).Count > 0)
+                        continue;
+                    if (EducationBuildingUtil.IsHighSchool(s))
+                        high.Add(s);
+                    else
+                        elem.Add(s);
+                }
+
+                // First N elementary + first M high schools, ALL with the SAME setting this run
+                // (one-setting-per-run → the same school across runs is a clean comparison).
+                var sample = new List<ushort>();
+                for (int i = 0; i < Experiment.Elementary && i < elem.Count; i++)
+                    sample.Add(elem[i]);
+                for (int i = 0; i < Experiment.HighSchools && i < high.Count; i++)
+                    sample.Add(high[i]);
+
+                Log.Info("EXP run R" + Experiment.RunId + ": r" + Mathf.RoundToInt(Experiment.Radius)
+                    + " m" + Experiment.Min + " p" + Mathf.RoundToInt(Experiment.Pickup)
+                    + " applied to all sampled schools");
+
+                int builtSchools = 0, totalRoutes = 0;
+                foreach (ushort schoolId in sample)
+                {
+                    var p = new BuildParams
+                    {
+                        Radius = Experiment.Radius, Min = Experiment.Min, Dynamic = false,
+                        Pickup = Experiment.Pickup, MaxRoutes = 0, Combo = Experiment.RunId,
+                    };
+                    Log.Info("EXP assign: " + (EducationBuildingUtil.IsHighSchool(schoolId) ? "HIGH" : "elem")
+                        + " school " + schoolId + " (cap " + EducationBuildingUtil.GetStudentCapacity(schoolId)
+                        + ") -> run R" + Experiment.RunId + " (r" + Mathf.RoundToInt(Experiment.Radius)
+                        + " m" + Experiment.Min + " p" + Mathf.RoundToInt(Experiment.Pickup) + ")");
+                    RouteBuilder.Result r = BuildSet(schoolId, p);
+                    if (r.Success)
+                    {
+                        builtSchools++;
+                        totalRoutes += r.RoutesBuilt;
+                    }
+                }
+                string msg = builtSchools + " schools (" + elem.Count + " elem/" + high.Count
+                    + " high available), " + totalRoutes + " routes built";
+                Log.Info("EXP run complete: " + msg + " — ensure depot capacity for the fleet");
+                ExperimentClock.Start(); // 15-min countdown → auto-stop marker + "close game" popup
+                MainThread(() => onComplete(msg));
+            });
+        }
+
+        // Stop creating new lines this far below CS1's 256 transport-line limit, so a city-wide
+        // generate degrades gracefully (reports how many schools it skipped) instead of failing.
+        private const int LineLimitGuard = 248;
+
+        // Clamps for capacity-scaled min — small schools still get stops; huge modded schools don't
+        // get an absurd min.
+        private const int MinFloor = 4;
+        private const int MinCeil = 14;
+
+        // The min-students-per-cluster to actually use for a school: either the flat setting, or —
+        // when ScaleMinByCapacity is on and we're not in auto-tune — scaled by the school's LIVE
+        // capacity (modded-safe; capacity ≤ 0 falls back to the flat min).
+        private static int EffectiveMin(ushort schoolId, BuildParams p)
+        {
+            if (!p.Dynamic && Settings.Instance.ScaleMinByCapacity)
+            {
+                int cap = EducationBuildingUtil.GetStudentCapacity(schoolId);
+                if (cap > 0)
+                    return Mathf.Clamp(Mathf.RoundToInt(cap * Settings.Instance.CapacityMinFactor), MinFloor, MinCeil);
+            }
+            return p.Min;
+        }
+
+        // USER FEATURE: route the WHOLE city in one go with the player's current settings — first
+        // DELETES all existing school routes, then generates a fresh set for every school that has
+        // students. Guarded against the line limit. No experiment combos/countdown. Caller must
+        // confirm first (the options-menu button shows a warning modal).
+        internal static void GenerateAllSchools(Action<string> onComplete)
+        {
+            Singleton<SimulationManager>.instance.AddAction(() =>
+            {
+                TransportManager tm = Singleton<TransportManager>.instance;
+
+                int removed = 0;
+                foreach (ushort lineId in Data.SchoolLineRegistry.GetAllLineIds())
+                {
+                    Data.SchoolLineData data;
+                    if (!Data.SchoolLineRegistry.TryGet(lineId, out data) || !data.ModGenerated)
+                        continue;
+                    tm.ReleaseLine(lineId);
+                    removed++;
+                }
+
+                int builtSchools = 0, totalRoutes = 0, skippedLimit = 0, skippedEmpty = 0;
+                foreach (ushort schoolId in EducationBuildingUtil.AllSchools())
+                {
+                    if (tm.m_lineCount >= LineLimitGuard)
+                    {
+                        skippedLimit++;
+                        continue;
+                    }
+                    RouteBuilder.Result r = BuildSet(schoolId, SettingsParams());
+                    if (r.Success)
+                    {
+                        builtSchools++;
+                        totalRoutes += r.RoutesBuilt;
+                    }
+                    else
+                    {
+                        skippedEmpty++;
+                    }
+                }
+
+                string msg = "deleted " + removed + " old, built " + totalRoutes + " route(s) for "
+                    + builtSchools + " school(s)"
+                    + (skippedEmpty > 0 ? " (" + skippedEmpty + " had no usable roster)" : "")
+                    + (skippedLimit > 0 ? " — STOPPED at the line limit, " + skippedLimit + " school(s) skipped" : "");
+                Log.Info("Generate-all-schools: " + msg);
+                MainThread(() => onComplete(msg));
+            });
+        }
+
+        // EXPERIMENT: wipe every mod-generated school route in the city (reset between rounds).
+        internal static void DeleteAllSchools(Action<int> onComplete)
+        {
+            Singleton<SimulationManager>.instance.AddAction(() =>
+            {
+                TransportManager tm = Singleton<TransportManager>.instance;
+                int removed = 0;
+                foreach (ushort lineId in Data.SchoolLineRegistry.GetAllLineIds())
+                {
+                    Data.SchoolLineData data;
+                    if (!Data.SchoolLineRegistry.TryGet(lineId, out data) || !data.ModGenerated)
+                        continue;
+                    tm.ReleaseLine(lineId);
+                    removed++;
+                }
+                Log.Info("Deleted ALL school routes: " + removed + " line(s)");
+                MainThread(() => onComplete(removed));
             });
         }
 
@@ -65,7 +242,7 @@ namespace SchoolBuses.Routing
         }
 
         // Plan the school's clusters once, sweep them into zones, and build one route per zone.
-        private static RouteBuilder.Result BuildSet(ushort schoolId)
+        private static RouteBuilder.Result BuildSet(ushort schoolId, BuildParams p)
         {
             try
             {
@@ -77,23 +254,62 @@ namespace SchoolBuses.Routing
                 if (homes.Count == 0)
                     return new RouteBuilder.Result { Error = "School has no enrolled students yet" };
 
+                int effMin = EffectiveMin(schoolId, p);
+
                 Vector3 schoolPos;
                 List<RoutePlanner.ClusterPoint> clusters;
                 Data.RouteMetrics.GenRecord baseMetrics;
                 string planError;
                 if (!RoutePlanner.PlanClusters(schoolId, homes,
-                        Settings.Instance.ClusterRadius,
-                        Settings.Instance.MinClusterStudents,
-                        Settings.Instance.DynamicStopCount,
+                        p.Radius, effMin, p.Dynamic,
                         out schoolPos, out clusters, out baseMetrics, out planError))
                     return new RouteBuilder.Result { Error = planError ?? "Could not plan a usable route" };
 
+                baseMetrics.PickupLoop = p.Pickup;
+                baseMetrics.Combo = p.Combo;
+
+                // Zone with NO hard cap — route count is meant to emerge from min + (conditionally)
+                // the catchment distance below.
                 List<List<RoutePlanner.ClusterPoint>> zones = RouteZoner.Partition(
-                    schoolPos, clusters,
-                    Settings.Instance.MaxRouteLength,
-                    Settings.Instance.MaxRoutesPerSchool);
+                    schoolPos, clusters, p.Pickup, 0);
                 if (zones.Count == 0)
                     return new RouteBuilder.Result { Error = "Could not plan a usable route" };
+
+                // Catchment trim — ONLY kicks in for spread-out schools that exceed the route
+                // trigger: drop neighbourhoods beyond MaxCatchmentDistance and re-zone, so compact
+                // schools keep full coverage and only the far-flung outliers are bounded. The trigger
+                // is CAPACITY-SCALED (MaxRoutesPerSchool = routes per 1000 capacity, clamped 3..16) so
+                // it fits a small school (~3) and a big one (~10) alike — modded-safe.
+                int triggerPer1000 = Settings.Instance.MaxRoutesPerSchool;
+                float catchDist = Settings.Instance.MaxCatchmentDistance;
+                int trigger = 0;
+                if (triggerPer1000 > 0)
+                    trigger = baseMetrics.Capacity > 0
+                        ? Mathf.Clamp(Mathf.RoundToInt(baseMetrics.Capacity * triggerPer1000 / 1000f), 3, 16)
+                        : triggerPer1000;
+                if (trigger > 0 && catchDist > 0f && zones.Count > trigger)
+                {
+                    float maxSqr = catchDist * catchDist;
+                    var near = new List<RoutePlanner.ClusterPoint>(clusters.Count);
+                    foreach (RoutePlanner.ClusterPoint c in clusters)
+                        if (RoadUtil.SqrDistance2D(c.Pos, schoolPos) <= maxSqr)
+                            near.Add(c);
+
+                    if (near.Count >= 1 && near.Count < clusters.Count)
+                    {
+                        int before = zones.Count;
+                        clusters = near;
+                        zones = RouteZoner.Partition(schoolPos, clusters, p.Pickup, 0);
+                        int covNow = 0;
+                        foreach (RoutePlanner.ClusterPoint c in clusters) covNow += c.Students;
+                        baseMetrics.Covered = covNow;
+                        baseMetrics.Coverage = baseMetrics.Considered > 0 ? (float)covNow / baseMetrics.Considered : 0f;
+                        baseMetrics.Stops = clusters.Count;
+                        Log.Info("Catchment trim: school " + schoolId + " had " + before + " routes > max "
+                            + trigger + " -> kept neighbourhoods within " + Mathf.RoundToInt(catchDist)
+                            + "m -> " + zones.Count + " routes");
+                    }
+                }
 
                 bool numbered = zones.Count > 1; // a lone route gets no " - n" suffix
                 int considered = baseMetrics.Considered;
@@ -146,12 +362,14 @@ namespace SchoolBuses.Routing
                 if (built == 0)
                     return new RouteBuilder.Result { Error = lastError ?? "No routes could be built" };
 
-                Log.Info("GEN SET summary: school " + schoolId + " -> built " + built + "/" + zones.Count
+                Log.Info("GEN SET summary: school " + schoolId
+                    + (p.Combo > 0 ? " [combo " + p.Combo + "]" : "")
+                    + " -> built " + built + "/" + zones.Count
                     + " route(s) from " + clusters.Count + " clusters | "
                     + baseMetrics.Considered + " students considered, " + baseMetrics.Excluded
                     + " walk-excluded, cap " + baseMetrics.Capacity
                     + " | radius " + Mathf.RoundToInt(baseMetrics.Radius) + "m, min " + baseMetrics.MinStudents
-                    + ", " + baseMetrics.Covered + " covered ("
+                    + ", pickup-loop " + Mathf.RoundToInt(p.Pickup) + "m, " + baseMetrics.Covered + " covered ("
                     + Mathf.RoundToInt(baseMetrics.Coverage * 100f) + "%)"
                     + (anyNoDepot ? " | NO BUS DEPOT in area" : ""));
 

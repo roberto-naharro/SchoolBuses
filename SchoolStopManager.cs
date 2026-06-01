@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Generic;
 using ColossalFramework;
+using ColossalFramework.UI;
 using ICities;
 using SchoolBuses.Data;
+using SchoolBuses.Routing;
 using SchoolBuses.Util;
 using UnityEngine;
 
@@ -55,6 +58,32 @@ namespace SchoolBuses
         private readonly Dictionary<ushort, uint> _warmBaseFrame = new Dictionary<ushort, uint>();
         private readonly Dictionary<ushort, int> _warmBaseServed = new Dictionary<ushort, int>();
 
+        // A line whose live covered-students has fallen below this is "obsolete" (its catchment
+        // drifted away under the game) — flagged so its usage sample can be excluded from weight
+        // tuning rather than wrongly blaming the design. See the route-fitness roadmap.
+        private const int ObsoleteCoverFloor = 6;
+
+        // Per-school usage accumulator for the SCHOOL health aggregate (the multi-route set studied
+        // "as one line"). Built fresh each report.
+        private sealed class SchoolAgg
+        {
+            public int Routes;
+            public int Stops;
+            public int Served;
+            public int ServedDelta;
+            public int TurnedAway;
+            public float SteadySum; // Σ post-warm-up steady rates (boardings/1k frames); warming lines contribute 0
+            public int Capacity;
+        }
+
+        // Auto-regenerate upkeep: periodically re-check coverage and regenerate a school whose routes
+        // have drifted below the target. Scan cadence + per-school cooldown (a regenerated school
+        // needs time to settle and we must not thrash an inherently-sparse one).
+        private const uint AutoRegenScanInterval = 16384;
+        private const uint AutoRegenCooldown = 65536;
+        private uint _lastAutoRegenScan;
+        private readonly Dictionary<ushort, uint> _lastSchoolRegen = new Dictionary<ushort, uint>();
+
         private void EnsureInitialized()
         {
             if (_initialized)
@@ -70,11 +99,36 @@ namespace SchoolBuses
         // OnBeforeSimulationFrame). Path-finding still resolves while paused, so this is where we
         // re-snap freshly built lines to close their loops — matching how a manually drawn line
         // completes while paused. Cheap no-op once nothing is pending.
+        // Set when the experiment countdown elapses (main thread) so the next sim-thread report
+        // emits a final, marked SCHOOL health snapshot.
+        private volatile bool _forceFinalReport;
+
         public override void OnUpdate(float realTimeDelta, float simulationTimeDelta)
         {
             if (!Settings.Instance.Enabled)
                 return;
             LineFinalizer.Tick();
+            if (ExperimentClock.Tick(realTimeDelta))
+                OnExperimentTimeout();
+        }
+
+        private void OnExperimentTimeout()
+        {
+            Log.Info("===== EXPERIMENT COMPLETE: 15 min elapsed — final SCHOOL health below is the result. "
+                + "Close the game and send output_log.txt. =====");
+            _forceFinalReport = true;
+            try
+            {
+                var panel = UIView.library.ShowModal<ExceptionPanel>("ExceptionPanel");
+                if (panel != null)
+                    panel.SetMessage("School Buses — experiment finished",
+                        "15 minutes elapsed. The final measurements are now in the log.\n\n"
+                        + "Please CLOSE THE GAME and send output_log.txt.", false);
+            }
+            catch (Exception e)
+            {
+                Log.Warning("Could not show experiment popup: " + e.Message);
+            }
         }
 
         public override void OnBeforeSimulationFrame()
@@ -83,6 +137,12 @@ namespace SchoolBuses
                 return;
 
             EnsureInitialized();
+
+            // Auto-regenerate upkeep runs regardless of eviction/reporting (once per full pass; it
+            // self-throttles to AutoRegenScanInterval).
+            uint frameNow = Singleton<SimulationManager>.instance.m_currentFrameIndex;
+            if ((frameNow & (uint)StepMask) == StepMask)
+                AutoRegenScan(frameNow);
 
             bool evict = Settings.Instance.EvictIneligibleRiders;
             bool report = Log.DebugEnabled;
@@ -126,11 +186,65 @@ namespace SchoolBuses
                 }
             }
 
-            // End of a full pass → emit a throttled snapshot and reset.
+            // End of a full pass → emit a throttled snapshot and reset. A pending experiment
+            // timeout forces an immediate final emit, marked so the result is easy to find.
             if (report && step == StepMask)
             {
-                bool emit = (++_passCounter % ReportEveryPasses) == 0;
+                bool force = _forceFinalReport;
+                bool emit = force || (++_passCounter % ReportEveryPasses) == 0;
                 ReportAndReset(emit);
+                if (force)
+                {
+                    _forceFinalReport = false;
+                    Log.Info("===== END OF EXPERIMENT — final measurements above =====");
+                }
+            }
+        }
+
+        // Upkeep: when the student distribution drifts so a school's routes fall below the coverage
+        // target, regenerate that school (same as the Regenerate button, current settings) so its
+        // stops follow the students. Disabled by Settings.AutoRegenerate for fully manual control.
+        // Throttled by scan interval + per-school cooldown to avoid thrashing.
+        private void AutoRegenScan(uint nowFrame)
+        {
+            if (!Settings.Instance.AutoRegenerate)
+                return;
+            float target = Settings.Instance.MinCoverageTarget;
+            if (target <= 0f)
+                return;
+            if (_lastAutoRegenScan != 0 && nowFrame - _lastAutoRegenScan < AutoRegenScanInterval)
+                return;
+            _lastAutoRegenScan = nowFrame;
+
+            float radius = Settings.Instance.ClusterRadius;
+            var schools = new HashSet<ushort>();
+            foreach (ushort lineId in SchoolLineRegistry.GetAllLineIds())
+            {
+                Data.SchoolLineData d;
+                if (SchoolLineRegistry.TryGet(lineId, out d) && d.ModGenerated)
+                    schools.Add(d.SchoolBuildingId);
+            }
+
+            foreach (ushort schoolId in schools)
+            {
+                uint last;
+                if (_lastSchoolRegen.TryGetValue(schoolId, out last) && nowFrame - last < AutoRegenCooldown)
+                    continue;
+
+                var lines = SchoolLineRegistry.GetLinesForSchool(schoolId);
+                int coveredUnion, roster, walkers;
+                Routing.CoverageTracker.SchoolCoverage(schoolId, lines, radius, out coveredUnion, out roster, out walkers);
+                int needBus = Mathf.Max(0, roster - walkers);
+                if (needBus == 0)
+                    continue;
+                float frac = (float)coveredUnion / needBus;
+                if (frac >= target)
+                    continue;
+
+                _lastSchoolRegen[schoolId] = nowFrame;
+                Log.Info("Auto-regenerate: school " + schoolId + " coverage " + Mathf.RoundToInt(frac * 100f)
+                    + "% < target " + Mathf.RoundToInt(target * 100f) + "% — regenerating routes");
+                Routing.RouteGenerator.RegenerateSchool(schoolId, r => { });
             }
         }
 
@@ -151,6 +265,10 @@ namespace SchoolBuses
                 var lines = Singleton<TransportManager>.instance.m_lines.m_buffer;
                 uint nowFrame = Singleton<SimulationManager>.instance.m_currentFrameIndex;
                 uint elapsed = _lastReportFrame == 0 ? 0 : nowFrame - _lastReportFrame;
+                float radius = Settings.Instance.ClusterRadius;
+                var homesCache = new Dictionary<ushort, List<ushort>>();
+                var agg = new Dictionary<ushort, SchoolAgg>();
+
                 foreach (ushort lineId in SchoolLineRegistry.GetAllLineIds())
                 {
                     if (lineId == 0 || lineId >= lines.Length)
@@ -166,21 +284,43 @@ namespace SchoolBuses
                     // School capacity (max students) normalises usage so lines of different-sized
                     // schools are comparable — the fair fitness signal for tuning the weights.
                     Data.SchoolLineData sd;
-                    int cap = SchoolLineRegistry.TryGet(lineId, out sd)
-                        ? EducationBuildingUtil.GetStudentCapacity(sd.SchoolBuildingId) : 0;
+                    bool known = SchoolLineRegistry.TryGet(lineId, out sd);
+                    ushort schoolId = known ? sd.SchoolBuildingId : (ushort)0;
+                    int cap = known ? EducationBuildingUtil.GetStudentCapacity(schoolId) : 0;
                     float normUse = cap > 0 ? perK / cap * 100f : 0f; // boardings/1k frames per 100 capacity
+
+                    // LIVE coverage: students this line currently reaches (re-measured now, not the
+                    // generation-time figure) — the demand-robust denominator for capture rate.
+                    List<ushort> homes = null;
+                    if (known && !homesCache.TryGetValue(schoolId, out homes))
+                    {
+                        homes = EducationBuildingUtil.GetStudentHomeBuildings(schoolId);
+                        homesCache[schoolId] = homes;
+                    }
+                    int liveCov = homes != null ? CoverageTracker.CoveredCount(lineId, schoolId, homes, radius) : 0;
+                    bool obsolete = liveCov < ObsoleteCoverFloor;
 
                     // Steady-state usage: ignore each line's warm-up, then a clean cumulative
                     // rate (boardings/1k frames) measured from the post-warm-up baseline — far
                     // less noisy than the per-report delta and the number worth tuning against.
+                    // Anchor the warm-up to the line's FIRST ACTUAL BOARDING, not its creation — with
+                    // few depots a line can sit busless for a long time, and counting that idle period
+                    // would poison the steady rate. Until it serves anyone it shows steady=nobus.
+                    string steadyStr;
+                    float steadyRate = float.NaN; // boardings/1k frames once past warm-up
                     uint firstSeen;
-                    if (!_firstFrame.TryGetValue(lineId, out firstSeen))
+                    bool started = _firstFrame.TryGetValue(lineId, out firstSeen);
+                    if (!started && counts.Served > 0)
                     {
                         firstSeen = nowFrame;
                         _firstFrame[lineId] = firstSeen;
+                        started = true;
                     }
-                    string steadyStr;
-                    if (nowFrame - firstSeen < WarmupFrames)
+                    if (!started)
+                    {
+                        steadyStr = " steady=nobus"; // never carried anyone yet (likely waiting for a bus)
+                    }
+                    else if (nowFrame - firstSeen < WarmupFrames)
                     {
                         steadyStr = " steady=warming";
                     }
@@ -198,10 +338,20 @@ namespace SchoolBuses
                             int baseServed;
                             _warmBaseServed.TryGetValue(lineId, out baseServed);
                             uint span = nowFrame - baseFrame;
-                            float steady = span > 0 ? 1000f * (counts.Served - baseServed) / span : 0f;
-                            steadyStr = " steady=" + steady.ToString("0.00") + "/1k";
+                            steadyRate = span > 0 ? 1000f * (counts.Served - baseServed) / span : 0f;
+                            steadyStr = " steady=" + steadyRate.ToString("0.00") + "/1k";
                         }
                     }
+
+                    // CAPTURE RATE = steady boardings per covered student — the demand-robust signal
+                    // the optimiser tunes against (how well the route serves who it reaches).
+                    string captureStr;
+                    if (float.IsNaN(steadyRate))
+                        captureStr = " capture=warming";
+                    else if (liveCov > 0)
+                        captureStr = " capture=" + (steadyRate / liveCov).ToString("0.000");
+                    else
+                        captureStr = " capture=n/a";
 
                     // Echo how the line was generated so params↔usage read on one line.
                     Data.RouteMetrics.GenRecord gen;
@@ -214,14 +364,66 @@ namespace SchoolBuses
 
                     Log.DebugLog("Line health: line " + lineId
                         + (lines[lineId].Complete ? " COMPLETE" : " INCOMPLETE")
+                        + (obsolete ? " OBSOLETE" : "")
                         + " length=" + Mathf.RoundToInt(lines[lineId].m_totalLength) + "m"
                         + " stops=" + CountStops(lineId, lines)
                         + " | usage: served=" + counts.Served + " (+" + delta + ", "
                         + perK.ToString("0.0") + "/1k frames)" + steadyStr
                         + " turnedAway=" + counts.TurnedAway
+                        + " liveCov=" + liveCov + captureStr
                         + " cap=" + cap + " normUse=" + normUse.ToString("0.00")
                         + genStr);
+
+                    // Accumulate into the per-school aggregate (study the route set "as one line").
+                    if (known)
+                    {
+                        SchoolAgg a;
+                        if (!agg.TryGetValue(schoolId, out a))
+                        {
+                            a = new SchoolAgg { Capacity = cap };
+                            agg[schoolId] = a;
+                        }
+                        a.Routes++;
+                        a.Stops += CountStops(lineId, lines);
+                        a.Served += counts.Served;
+                        a.ServedDelta += delta;
+                        a.TurnedAway += counts.TurnedAway;
+                        if (!float.IsNaN(steadyRate))
+                            a.SteadySum += steadyRate;
+                    }
                 }
+
+                // SCHOOL health: the multi-route set as a whole — union coverage, summed ridership,
+                // and capture rate against students who need a bus. This is the per-school datum the
+                // optimiser ultimately maximises.
+                foreach (var kv in agg)
+                {
+                    ushort schoolId = kv.Key;
+                    SchoolAgg a = kv.Value;
+                    var schoolLines = SchoolLineRegistry.GetLinesForSchool(schoolId);
+                    int covUnion, roster, walkers;
+                    CoverageTracker.SchoolCoverage(schoolId, schoolLines, radius, out covUnion, out roster, out walkers);
+                    int needBus = Mathf.Max(0, roster - walkers);
+                    int covPct = needBus > 0 ? Mathf.RoundToInt(100f * covUnion / needBus) : 0;
+                    string capture = covUnion > 0 ? (a.SteadySum / covUnion).ToString("0.000") : "n/a";
+                    string perRoute = a.Routes > 0 ? (a.SteadySum / a.Routes).ToString("0.00") : "n/a";
+
+                    // Echo the build params (shared across the school's routes) so combo↔capture
+                    // read on one line — the join the experiment analysis needs.
+                    Data.RouteMetrics.GenRecord g;
+                    string built = schoolLines.Count > 0 && Data.RouteMetrics.TryGet(schoolLines[0], out g)
+                        ? " | built: combo" + g.Combo + " r" + Mathf.RoundToInt(g.Radius) + " m" + g.MinStudents
+                            + " pickup" + Mathf.RoundToInt(g.PickupLoop) + (g.Dynamic ? " auto" : "")
+                        : "";
+
+                    Log.DebugLog("SCHOOL health: school " + schoolId + " | routes=" + a.Routes
+                        + " stops=" + a.Stops + " cap=" + a.Capacity
+                        + " | served=" + a.Served + " (+" + a.ServedDelta + ", steady "
+                        + a.SteadySum.ToString("0.00") + "/1k) turnedAway=" + a.TurnedAway
+                        + " | cov " + covUnion + "/" + needBus + " need-bus (" + covPct + "%) walk=" + walkers
+                        + " | capture=" + capture + " perRoute=" + perRoute + built);
+                }
+
                 _lastReportFrame = nowFrame;
             }
 

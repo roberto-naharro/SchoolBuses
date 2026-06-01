@@ -61,12 +61,11 @@ namespace SchoolBuses.Util
                     while (segId != 0)
                     {
                         NetInfo info = segments[segId].Info;
-                        // Require a car-drivable road. Service.Road also covers wall-to-wall
-                        // pedestrian streets (Plazas & Promenades) which have NO vehicle lanes;
-                        // snapping a stop there gives a line the bus can never path → incomplete.
-                        if (info != null && info.m_class != null
-                            && info.m_class.m_service == ItemClass.Service.Road
-                            && (info.m_hasForwardVehicleLanes || info.m_hasBackwardVehicleLanes))
+                        // Require a road where a bus stop is actually allowed (see CanPlaceBusStop):
+                        // car-drivable, with pedestrian access, and NOT a highway. Highways are
+                        // Service.Road with car lanes so they'd otherwise pass — but a stop there is
+                        // invalid (no pedestrian access) and disconnects the line's path.
+                        if (CanPlaceBusStop(info))
                         {
                             Vector3 a = nodes[segments[segId].m_startNode].m_position;
                             Vector3 b = nodes[segments[segId].m_endNode].m_position;
@@ -85,6 +84,28 @@ namespace SchoolBuses.Util
                 }
             }
             return bestSeg;
+        }
+
+        // True if a bus stop can validly sit on this segment's road. Mirrors the practical vanilla
+        // rules for school-bus pickups:
+        //  • a real road (not a pedestrian-only Plazas & Promenades street — no vehicle lanes),
+        //  • drivable (forward or backward car lanes),
+        //  • with PEDESTRIAN access (sidewalks) so students can reach the stop, and
+        //  • NOT a highway (RoadBaseAI.m_highwayRules) — highways forbid stops/pedestrians, and a
+        //    stop snapped onto one disconnects the line's path.
+        private static bool CanPlaceBusStop(NetInfo info)
+        {
+            if (info == null || info.m_class == null
+                || info.m_class.m_service != ItemClass.Service.Road)
+                return false;
+            if (!info.m_hasForwardVehicleLanes && !info.m_hasBackwardVehicleLanes)
+                return false;
+            if (!info.m_hasPedestrianLanes)
+                return false;
+            RoadBaseAI ai = info.m_netAI as RoadBaseAI;
+            if (ai != null && ai.m_highwayRules)
+                return false;
+            return true;
         }
 
         private static Vector3 ClosestPointOnSegment(Vector3 p, Vector3 a, Vector3 b)

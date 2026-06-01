@@ -32,6 +32,32 @@ namespace SchoolBuses.Util
             return Singleton<BuildingManager>.instance.m_buildings.m_buffer[buildingId].m_position;
         }
 
+        // High school = EducationLevel2 (elementary = Level1). Lets the experiment pick a fixed
+        // mix of small (elementary) and large (high) schools.
+        internal static bool IsHighSchool(ushort buildingId)
+        {
+            if (!IsSchool(buildingId))
+                return false;
+            BuildingInfo info = Singleton<BuildingManager>.instance.m_buildings.m_buffer[buildingId].Info;
+            return info != null && info.m_buildingAI != null && info.m_buildingAI.GetEducationLevel2();
+        }
+
+        // Every built K–12 school in the city (used by the experiment harness to generate routes
+        // for all schools at once).
+        internal static List<ushort> AllSchools()
+        {
+            var result = new List<ushort>();
+            var buildings = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
+            for (int i = 1; i < buildings.Length; i++)
+            {
+                if ((buildings[i].m_flags & Building.Flags.Created) == Building.Flags.None)
+                    continue;
+                if (IsSchool((ushort)i))
+                    result.Add((ushort)i);
+            }
+            return result;
+        }
+
         // Find a K–12 school within maxDistance of a world position (used to detect
         // which school an existing line's stop serves). Returns 0 if none.
         internal static ushort FindSchoolNear(Vector3 position, float maxDistance)

@@ -36,21 +36,27 @@ namespace SchoolBuses.Routing
             return (float)covered / homes.Count;
         }
 
-        // Students this ONE line covers (home within `radius` of any of its stops).
-        internal static int CoveredCount(ushort lineId, List<ushort> homes, float radius)
+        // Students this ONE line covers: home within `radius` of any of its stops AND not a walker
+        // (within walking distance of the school — those need no bus, so they don't count as covered).
+        internal static int CoveredCount(ushort lineId, ushort schoolId, List<ushort> homes, float radius)
         {
             List<Vector3> stops = GetStopPositions(lineId);
             if (stops.Count == 0 || homes.Count == 0)
                 return 0;
 
             var buildings = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
+            Vector3 schoolPos = EducationBuildingUtil.GetPosition(schoolId);
+            float walkSqr = RoutePlanner.WalkToSchool * RoutePlanner.WalkToSchool;
             float radiusSqr = radius * radius;
             int covered = 0;
             foreach (ushort home in homes)
             {
                 if (home == 0)
                     continue;
-                if (WithinAnyStop(buildings[home].m_position, stops, radiusSqr))
+                Vector3 pos = buildings[home].m_position;
+                if (RoadUtil.SqrDistance2D(pos, schoolPos) < walkSqr)
+                    continue; // walker — not a bus rider
+                if (WithinAnyStop(pos, stops, radiusSqr))
                     covered++;
             }
             return covered;
@@ -87,7 +93,10 @@ namespace SchoolBuses.Routing
                     continue;
                 Vector3 pos = buildings[home].m_position;
                 if (RoadUtil.SqrDistance2D(pos, schoolPos) < walkSqr)
+                {
                     walkers++;
+                    continue; // a walker is never counted as covered (else coverage can exceed 100%)
+                }
                 if (allStops.Count > 0 && WithinAnyStop(pos, allStops, radiusSqr))
                     coveredUnion++;
             }

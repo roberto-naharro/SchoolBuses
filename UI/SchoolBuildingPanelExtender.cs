@@ -257,7 +257,7 @@ namespace SchoolBuses.UI
             }
 
             foreach (ushort lineId in lines)
-                AddLineRow(lineId, homes, radius);
+                AddLineRow(buildingId, lineId, homes, radius);
 
             float y = ListTop + (lines.Count > 0 ? listH + 8f : 0f);
             _generateButton.relativePosition = new Vector3(Pad, y);
@@ -288,12 +288,12 @@ namespace SchoolBuses.UI
 
         // One route row: covered students + the line's own share of the roster. NO per-line problem
         // flag — the meaningful health is whole-school coverage (shown above).
-        private void AddLineRow(ushort lineId, List<ushort> homes, float radius)
+        private void AddLineRow(ushort buildingId, ushort lineId, List<ushort> homes, float radius)
         {
             int stops = Singleton<TransportManager>.instance.m_lines.m_buffer[lineId].CountStops(lineId);
             string name = Singleton<TransportManager>.instance.GetLineName(lineId);
             BoardingStats.Counts counts = BoardingStats.Get(lineId);
-            int covered = CoverageTracker.CoveredCount(lineId, homes, radius);
+            int covered = CoverageTracker.CoveredCount(lineId, buildingId, homes, radius);
             int pct = homes.Count > 0 ? Mathf.RoundToInt(100f * covered / homes.Count) : 0;
 
             UIButton row = UIHelper.CreateButton(_lineList);
