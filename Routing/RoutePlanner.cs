@@ -23,15 +23,19 @@ namespace SchoolBuses.Routing
 
         // Weighted fitness for a candidate clustering (all terms normalised to ~[0,1]):
         //   score = Wcoverage·coverage − Wstops·(stops/max) − WperStop·perStopError
-        // The proxy we can compute at generation time. The REAL objective is how much the line
-        // gets used (boardings per time) — these weights are placeholders to be tuned against
-        // that measured usage later (see usage logging in SchoolStopManager / BoardingStats).
-        private const float WCoverage = 1.00f;  // serve as many students as possible (dominant)
-        private const float WStops = 0.45f;     // penalise long routes (too many stops is bad)
-        private const float WPerStop = 0.20f;   // nudge stop sizes toward a sensible bus-load
+        // The proxy we can compute at generation time. The REAL objective is how much the line gets
+        // used (boardings per time) — and COVERAGE of bus-needing students is the main driver of
+        // that: an uncovered neighbourhood is lost ridership. Multi-route flipped the old trade-off:
+        // extra stops used to bloat one starved single-bus loop (so we penalised them hard), but now
+        // they become extra SHORT routes (no starvation), and fleet cost is a small brake handled at
+        // zoning. So coverage dominates and the stop penalty is light — just enough to avoid absurd
+        // counts. To be tuned against measured usage later (SchoolStopManager / BoardingStats).
+        private const float WCoverage = 1.00f;  // cover as many bus-needing students as possible (dominant)
+        private const float WStops = 0.12f;     // light: stops are now cheap (each is part of a short route)
+        private const float WPerStop = 0.20f;   // nudge stop sizes toward a sensible bus-load (avoid 1–2-kid stops)
 
         // Students whose home is within WalkToSchool of the school just walk — no stop for them.
-        private const float WalkToSchool = 350f;
+        internal const float WalkToSchool = 350f;
         private const float SnapSearchRadius = 200f;
 
         // Search grid. Radii top out around the distance a student will actually walk to a stop
@@ -45,9 +49,18 @@ namespace SchoolBuses.Routing
             public int Students;
         }
 
+        // A road-snapped pickup neighbourhood with its student count. The unit the zoner
+        // partitions into routes and the builder turns into a stop.
+        internal struct ClusterPoint
+        {
+            public Vector3 Pos;
+            public int Students;
+        }
+
         // Returns the ordered stop list: school, s0, s1, …, sn (the game closes sn → school).
         // The closed-loop 2-opt keeps sn near the school so that final hop is short.
         // index 0 is always the school (the school stop). Returns null if nothing usable.
+        // Single-route convenience: cluster the whole roster, then order ALL clusters as one loop.
         internal static List<Vector3> PlanStops(
             ushort schoolId,
             List<ushort> studentHomes,
@@ -56,6 +69,37 @@ namespace SchoolBuses.Routing
             bool dynamicStopCount,
             out Data.RouteMetrics.GenRecord metrics)
         {
+            Vector3 schoolPos;
+            List<ClusterPoint> clusters;
+            string error;
+            if (!PlanClusters(schoolId, studentHomes, clusterRadius, minClusterStudents,
+                    dynamicStopCount, out schoolPos, out clusters, out metrics, out error))
+                return null;
+
+            var stops = new List<Vector3>(clusters.Count);
+            foreach (ClusterPoint c in clusters)
+                stops.Add(c.Pos);
+            return OrderZone(schoolPos, stops);
+        }
+
+        // Roster → road-snapped pickup clusters (the part we optimise), WITHOUT ordering them
+        // into a tour. Multi-route generation calls this once per school, then the zoner splits
+        // the clusters into sectors and each sector is ordered separately via OrderZone. `metrics`
+        // describes the whole-school clustering; per-route covered/stops are derived by the caller.
+        // Returns false with `error` set if nothing usable can be planned.
+        internal static bool PlanClusters(
+            ushort schoolId,
+            List<ushort> studentHomes,
+            float clusterRadius,
+            int minClusterStudents,
+            bool dynamicStopCount,
+            out Vector3 schoolPos,
+            out List<ClusterPoint> clusters,
+            out Data.RouteMetrics.GenRecord metrics,
+            out string error)
+        {
+            error = null;
+            clusters = null;
             metrics = new Data.RouteMetrics.GenRecord
             {
                 SchoolId = schoolId,
@@ -68,22 +112,23 @@ namespace SchoolBuses.Routing
             // building centre often snaps to an awkward point far from the road, which is a
             // common cause of the closing hop (last stop → school) being unpathable.
             Vector3 schoolBuildingPos = EducationBuildingUtil.GetPosition(schoolId);
-            Vector3 schoolPos = schoolBuildingPos;
+            schoolPos = schoolBuildingPos;
             bool schoolSnapped;
             Vector3 snappedSchool = RoadUtil.SnapToRoad(schoolPos, 200f, out schoolSnapped);
             if (schoolSnapped)
                 schoolPos = snappedSchool;
 
             // One point per student (homes repeat for siblings), so cluster sizes are student
-            // counts. Drop students who live within walking distance of the school — they walk,
-            // so building a pickup stop for them is wasted (and would crowd stops near the
-            // school).
-            int walkers;
-            var studentPositions = StudentHomePositions(studentHomes, schoolBuildingPos, out walkers);
-            metrics.Excluded = walkers;
-            metrics.Considered = studentPositions.Count;
-            if (studentPositions.Count == 0)
-                return null;
+            // counts. We cluster ALL students by their own spatial distribution — the SCHOOL
+            // POSITION is deliberately ignored here, so each centroid sits at the true centre of a
+            // neighbourhood and covers it accurately (it isn't pulled or trimmed by school proximity).
+            var studentPositions = StudentHomePositions(studentHomes);
+            int total = studentPositions.Count;
+            if (total == 0)
+            {
+                error = "School has no locatable student homes";
+                return false;
+            }
 
             // Group students into neighbourhoods and choose which get a stop. Auto-tune searches
             // a grid of (radius × min-students) for the best-scoring clustering; manual mode uses
@@ -91,48 +136,64 @@ namespace SchoolBuses.Routing
             float chosenRadius;
             int chosenMin;
             float fitness;
-            List<Cluster> clusters;
+            List<Cluster> raw;
             if (dynamicStopCount)
             {
-                clusters = OptimiseClustering(studentPositions, out chosenRadius, out chosenMin, out fitness);
+                raw = OptimiseClustering(studentPositions, out chosenRadius, out chosenMin, out fitness);
             }
             else
             {
-                clusters = SelectClusters(BuildClusters(studentPositions, clusterRadius), minClusterStudents);
+                raw = SelectClusters(BuildClusters(studentPositions, clusterRadius), minClusterStudents);
                 chosenRadius = clusterRadius;
                 chosenMin = minClusterStudents;
                 fitness = float.NaN;
             }
-            if (clusters.Count == 0)
-                return null;
 
-            int covered = SumStudents(clusters);
+            // ONLY NOW bring in the school: a neighbourhood whose centre is within walking distance
+            // gets no stop (those students walk). Done per-cluster (not per-student) so a real
+            // neighbourhood that straddles the walk boundary keeps its true centre.
+            int walkers = DropWalkerClusters(raw, schoolBuildingPos);
+            metrics.Excluded = walkers;
+            if (raw.Count == 0)
+            {
+                error = "Every neighbourhood is within walking distance of the school";
+                return false;
+            }
+
+            int covered = SumStudents(raw);
+            int considered = total - walkers;
+            metrics.Considered = considered;
             metrics.Radius = chosenRadius;
             metrics.MinStudents = chosenMin;
-            metrics.Stops = clusters.Count;
+            metrics.Stops = raw.Count;
             metrics.Covered = covered;
-            metrics.Coverage = studentPositions.Count > 0 ? (float)covered / studentPositions.Count : 0f;
+            metrics.Coverage = considered > 0 ? (float)covered / considered : 0f;
             metrics.Fitness = fitness;
 
             if (!dynamicStopCount)
-                Log.DebugLog("Clustering: " + studentPositions.Count + " students -> kept "
-                    + clusters.Count + " pickup clusters (radius " + Mathf.RoundToInt(clusterRadius)
-                    + "m, min " + minClusterStudents + " students each) — " + DescribeSizes(clusters));
+                Log.DebugLog("Clustering: " + total + " students (school-independent) -> kept "
+                    + raw.Count + " pickup clusters (radius " + Mathf.RoundToInt(clusterRadius)
+                    + "m, min " + minClusterStudents + " students each), " + walkers
+                    + " walk — " + DescribeSizes(raw));
 
             // Snap each cluster centroid onto a road.
-            var snapped = new List<Vector3>(clusters.Count);
-            foreach (Cluster c in clusters)
+            clusters = new List<ClusterPoint>(raw.Count);
+            foreach (Cluster c in raw)
             {
                 bool found;
                 Vector3 p = RoadUtil.SnapToRoad(c.Centroid, SnapSearchRadius, out found);
-                snapped.Add(found ? p : c.Centroid);
+                clusters.Add(new ClusterPoint { Pos = found ? p : c.Centroid, Students = c.Students });
             }
+            return true;
+        }
 
-            // Order the pickups as a loop through the school: NN seed + closed-loop 2-opt. The
-            // 2-opt includes the return-to-school edge, so the last pickup ends up near the
-            // school and the ring (closed by RouteBuilder.CloseLoop) has a short final hop. No
-            // separate "approach" stop is added — that left an unwanted stop right by the school.
-            List<Vector3> ordered = NearestNeighbourTour(schoolPos, snapped);
+        // Order one zone's pickups as a loop through the school: NN seed + closed-loop 2-opt. The
+        // 2-opt includes the return-to-school edge, so the last pickup ends up near the school and
+        // the ring (closed by RouteBuilder.CloseLoop) has a short final hop. No separate "approach"
+        // stop is added. Returns [school, s0, s1, …, sn]; index 0 is always the school stop.
+        internal static List<Vector3> OrderZone(Vector3 schoolPos, List<Vector3> zoneStops)
+        {
+            List<Vector3> ordered = NearestNeighbourTour(schoolPos, zoneStops);
             TwoOpt(schoolPos, ordered);
 
             var result = new List<Vector3>(ordered.Count + 1);
@@ -144,30 +205,40 @@ namespace SchoolBuses.Routing
         // One position per student (no de-duplication): two students sharing a home produce
         // two identical points, so a cluster's point-count is its student-count. Identical
         // points always fall into the same cluster, and the running-mean centroid is pulled
-        // toward the denser buildings. Students within WalkToSchool of the school are dropped
-        // (they walk).
-        private static List<Vector3> StudentHomePositions(List<ushort> homes, Vector3 schoolPos, out int walkers)
+        // toward the denser buildings. The school position is NOT used here — clustering is by
+        // student distribution alone.
+        private static List<Vector3> StudentHomePositions(List<ushort> homes)
         {
             var buildings = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
             var positions = new List<Vector3>(homes.Count);
-            float walkSqr = WalkToSchool * WalkToSchool;
-            walkers = 0;
             foreach (ushort id in homes)
             {
                 if (id == 0)
                     continue;
-                Vector3 p = buildings[id].m_position;
-                if (RoadUtil.SqrDistance2D(p, schoolPos) < walkSqr)
+                positions.Add(buildings[id].m_position);
+            }
+            return positions;
+        }
+
+        // Remove neighbourhoods whose CENTRE is within walking distance of the school — that whole
+        // cluster walks, so it gets no stop. Returns the number of students dropped. Runs after
+        // clustering so a neighbourhood that straddles the walk boundary keeps its true centroid.
+        private static int DropWalkerClusters(List<Cluster> clusters, Vector3 schoolPos)
+        {
+            float walkSqr = WalkToSchool * WalkToSchool;
+            int walkers = 0;
+            for (int i = clusters.Count - 1; i >= 0; i--)
+            {
+                if (RoadUtil.SqrDistance2D(clusters[i].Centroid, schoolPos) < walkSqr)
                 {
-                    walkers++;
-                    continue;
+                    walkers += clusters[i].Students;
+                    clusters.RemoveAt(i);
                 }
-                positions.Add(p);
             }
             if (walkers > 0)
-                Log.DebugLog("Excluded " + walkers + " student(s) within "
+                Log.DebugLog("Dropped " + walkers + " student(s) in neighbourhoods within "
                     + Mathf.RoundToInt(WalkToSchool) + "m of the school (they walk)");
-            return positions;
+            return walkers;
         }
 
         // Greedy radius clustering with NO cap: a home joins the nearest cluster within radius,

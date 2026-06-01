@@ -13,10 +13,16 @@ namespace SchoolBuses.UI
     // Generate Route, and a per-line Regenerate when coverage drifts.
     public class SchoolBuildingPanelExtender : MonoBehaviour
     {
-        private const float Width = 272f;
+        private const float Width = 320f;
         private const float Pad = 10f;
         private const float TitleBarOffset = 60f; // align dock with the building panel title bar
         private const int RefreshEveryTicks = 120; // ~2 s at 60 fps
+
+        private const float ListTop = 94f;   // below title + enrolled + 2-line coverage label
+        private const float RowHeight = 46f;
+        private const float RowGap = 4f;
+        private const int MaxVisibleRows = 4; // scroll past this many routes
+        private const float ListHeight = MaxVisibleRows * (RowHeight + RowGap);
 
         private bool _initialized;
         private WorldInfoPanel _wip;
@@ -25,8 +31,12 @@ namespace SchoolBuses.UI
         private UIPanel _panel;
         private UILabel _title;
         private UILabel _enrolled;
-        private UIPanel _lineList;
+        private UILabel _coverageLabel;
+        private UIScrollablePanel _lineList;
+        private UIScrollbar _scrollbar;
         private UIButton _generateButton;
+        private UIButton _regenButton;
+        private UIButton _deleteButton;
         private UILabel _statusLabel;
 
         private readonly List<UIButton> _rows = new List<UIButton>();
@@ -34,6 +44,8 @@ namespace SchoolBuses.UI
         private int _cachedLineCount = -1;
         private int _tick;
         private bool _busy;
+        private bool _regenArmed;  // first Regenerate click arms; second confirms (delete-all + rebuild)
+        private bool _deleteArmed; // first Delete click arms; second confirms (delete, no rebuild)
 
         private void Update()
         {
@@ -70,7 +82,11 @@ namespace SchoolBuses.UI
                 // school. Clear it when the panel moves to a different building so it doesn't
                 // linger on every other school's window.
                 if (buildingChanged && _statusLabel != null)
+                {
                     _statusLabel.text = string.Empty;
+                    _regenArmed = false;  // don't carry a primed confirm across schools
+                    _deleteArmed = false;
+                }
                 _cachedBuilding = buildingId;
                 _cachedLineCount = lineCount;
                 Refresh(buildingId);
@@ -110,24 +126,82 @@ namespace SchoolBuses.UI
             _enrolled.width = Width - 2 * Pad;
             _enrolled.height = 16f;
 
-            _lineList = _panel.AddUIComponent<UIPanel>();
+            // Whole-school coverage (union of all routes) — the meaningful figure; a single line's
+            // own % is low by design when a school has several routes.
+            _coverageLabel = UIHelper.CreateLabel(_panel, 0.8f);
+            _coverageLabel.relativePosition = new Vector3(Pad, 52f);
+            _coverageLabel.width = Width - 2 * Pad;
+            _coverageLabel.height = 34f;
+            // No wrapping: keep each line short enough to fit so the label can't overflow DOWN past
+            // its height into the route list below it (UILabels don't clip their text).
+            _coverageLabel.wordWrap = false;
+
+            // Scrollable list: shows ~MaxVisibleRows rows, scroll for the rest, so a big school's
+            // many routes never overflow the game window.
+            _lineList = _panel.AddUIComponent<UIScrollablePanel>();
             _lineList.name = "LineList";
             _lineList.width = Width - 2 * Pad;
-            _lineList.relativePosition = new Vector3(Pad, 56f);
+            _lineList.height = ListHeight;
+            _lineList.relativePosition = new Vector3(Pad, ListTop);
             _lineList.autoLayout = true;
             _lineList.autoLayoutDirection = LayoutDirection.Vertical;
-            _lineList.autoLayoutPadding = new RectOffset(0, 0, 0, 4);
-            _lineList.height = 180f;
+            _lineList.autoLayoutPadding = new RectOffset(0, 0, 0, (int)RowGap);
+            _lineList.clipChildren = true;
+            _lineList.scrollWheelDirection = UIOrientation.Vertical;
+            _lineList.scrollWheelAmount = (int)(RowHeight + RowGap);
+            BuildScrollbar(_lineList);
 
             _generateButton = UIHelper.CreateButton(_panel);
-            _generateButton.text = "+ Generate Route";
-            _generateButton.tooltip = "Create a bus line from this school's current student roster.";
+            _generateButton.text = "+ Generate Routes";
+            _generateButton.tooltip = "Create bus routes from this school's current student roster.";
             _generateButton.size = new Vector2(Width - 2 * Pad, 30f);
             _generateButton.eventClick += (c, p) => StartGenerate();
+
+            _regenButton = UIHelper.CreateButton(_panel);
+            _regenButton.text = "⟳ Regenerate All";
+            _regenButton.tooltip = "Delete this school's routes and rebuild them from the current roster.";
+            _regenButton.size = new Vector2(Width - 2 * Pad, 30f);
+            _regenButton.eventClick += (c, p) => StartRegenerateAll();
+            _regenButton.Hide();
+
+            _deleteButton = UIHelper.CreateButton(_panel);
+            _deleteButton.text = "🗑 Delete All Routes";
+            _deleteButton.tooltip = "Delete this school's routes (without rebuilding).";
+            _deleteButton.size = new Vector2(Width - 2 * Pad, 30f);
+            _deleteButton.eventClick += (c, p) => StartDeleteAll();
+            _deleteButton.Hide();
 
             _statusLabel = UIHelper.CreateLabel(_panel, 0.72f);
             _statusLabel.width = Width - 2 * Pad;
             _statusLabel.height = 30f;
+        }
+
+        // Standard CS1 vertical scrollbar wired to the scrollable panel.
+        private void BuildScrollbar(UIScrollablePanel target)
+        {
+            var scrollbar = _panel.AddUIComponent<UIScrollbar>();
+            _scrollbar = scrollbar;
+            scrollbar.width = 12f;
+            scrollbar.height = target.height;
+            scrollbar.orientation = UIOrientation.Vertical;
+            scrollbar.pivot = UIPivotPoint.TopLeft;
+            scrollbar.relativePosition = new Vector3(target.relativePosition.x + target.width + 2f, ListTop);
+            scrollbar.minValue = 0f;
+            scrollbar.value = 0f;
+            scrollbar.incrementAmount = 50f;
+
+            var track = scrollbar.AddUIComponent<UISlicedSprite>();
+            track.spriteName = "ScrollbarTrack";
+            track.relativePosition = Vector3.zero;
+            track.size = scrollbar.size;
+            scrollbar.trackObject = track;
+
+            var thumb = track.AddUIComponent<UISlicedSprite>();
+            thumb.spriteName = "ScrollbarThumb";
+            thumb.width = scrollbar.width;
+            scrollbar.thumbObject = thumb;
+
+            target.verticalScrollbar = scrollbar;
         }
 
         private void Refresh(ushort buildingId)
@@ -140,58 +214,105 @@ namespace SchoolBuses.UI
 
             ClearRows();
             List<ushort> lines = SchoolLineRegistry.GetLinesForSchool(buildingId);
-            float threshold = Settings.Instance.CoverageThreshold;
             float radius = Settings.Instance.ClusterRadius;
+            float threshold = Settings.Instance.CoverageThreshold;
+            List<ushort> homes = EducationBuildingUtil.GetStudentHomeBuildings(buildingId);
+
+            // Whole-school coverage = union of all routes (each student counted once), measured
+            // against students who NEED a bus (roster minus near-school walkers).
+            if (lines.Count > 0)
+            {
+                int coveredUnion, roster, walkers;
+                CoverageTracker.SchoolCoverage(buildingId, lines, radius, out coveredUnion, out roster, out walkers);
+                int needBus = Mathf.Max(0, roster - walkers);
+                float frac = needBus > 0 ? (float)coveredUnion / needBus : 1f;
+                _coverageLabel.text = "Covered " + coveredUnion + "/" + needBus + " need bus ("
+                    + Mathf.RoundToInt(frac * 100f) + "%)\n" + walkers + " walk · "
+                    + lines.Count + " route(s)";
+                _coverageLabel.textColor = frac + 1e-4f >= threshold ? UIHelper.Green : UIHelper.Amber;
+                _coverageLabel.Show();
+            }
+            else
+            {
+                _coverageLabel.Hide();
+            }
+
+            // Size the scrollable list BEFORE the rows are added, so each row picks up the right
+            // width. The scrollbar only appears when there are more routes than fit, and the list
+            // narrows to make room for it ONLY then — otherwise the text would sit under the bar.
+            int visibleRows = Mathf.Min(lines.Count, MaxVisibleRows);
+            float listH = visibleRows * (RowHeight + RowGap);
+            bool overflow = lines.Count > MaxVisibleRows;
+            float listW = (Width - 2 * Pad) - (overflow ? 16f : 0f);
+            _lineList.width = listW;
+            _lineList.height = listH;
+            _lineList.isVisible = lines.Count > 0;
+            if (_scrollbar != null)
+            {
+                _scrollbar.height = listH;
+                _scrollbar.isVisible = overflow;
+                _scrollbar.relativePosition = new Vector3(Pad + listW + 2f, ListTop);
+                if (!overflow)
+                    _lineList.scrollPosition = Vector2.zero;
+            }
 
             foreach (ushort lineId in lines)
-                AddLineRow(buildingId, lineId, radius, threshold);
+                AddLineRow(lineId, homes, radius);
 
-            // Layout the action button + status below the (variable-height) list.
-            float listBottom = _lineList.relativePosition.y + Mathf.Max(28f, _rows.Count * 50f);
-            _generateButton.relativePosition = new Vector3(Pad, listBottom + 8f);
-            _statusLabel.relativePosition = new Vector3(Pad, listBottom + 44f);
-            _panel.height = listBottom + 80f;
+            float y = ListTop + (lines.Count > 0 ? listH + 8f : 0f);
+            _generateButton.relativePosition = new Vector3(Pad, y);
+            y += 38f;
+            if (lines.Count > 0)
+            {
+                _regenButton.Show();
+                _regenButton.relativePosition = new Vector3(Pad, y);
+                y += 38f;
+                _deleteButton.Show();
+                _deleteButton.relativePosition = new Vector3(Pad, y);
+                y += 38f;
+            }
+            else
+            {
+                _regenButton.Hide();
+                _deleteButton.Hide();
+            }
+            _statusLabel.relativePosition = new Vector3(Pad, y);
+            _panel.height = y + 44f;
         }
 
-        private void AddLineRow(ushort buildingId, ushort lineId, float radius, float threshold)
+        // One route row: covered students + the line's own share of the roster. NO per-line problem
+        // flag — the meaningful health is whole-school coverage (shown above).
+        private void AddLineRow(ushort lineId, List<ushort> homes, float radius)
         {
-            LineHealthResult health = LineHealth.Evaluate(lineId, buildingId, radius, threshold);
             int stops = Singleton<TransportManager>.instance.m_lines.m_buffer[lineId].CountStops(lineId);
             string name = Singleton<TransportManager>.instance.GetLineName(lineId);
             BoardingStats.Counts counts = BoardingStats.Get(lineId);
-            bool problem = health.IsProblem;
+            int covered = CoverageTracker.CoveredCount(lineId, homes, radius);
+            int pct = homes.Count > 0 ? Mathf.RoundToInt(100f * covered / homes.Count) : 0;
 
             UIButton row = UIHelper.CreateButton(_lineList);
-            row.size = new Vector2(_lineList.width, 46f);
+            row.size = new Vector2(_lineList.width, RowHeight);
             row.textHorizontalAlignment = UIHorizontalAlignment.Left;
             row.textVerticalAlignment = UIVerticalAlignment.Top;
             row.textScale = 0.68f;
             row.wordWrap = true;
-            row.text = (problem ? "⚠ " : "● ") + name + "\n"
-                       + stops + " stops · " + Mathf.RoundToInt(health.Coverage * 100f) + "% covered\n"
+            row.text = "● " + name + "\n"
+                       + stops + " stops · " + covered + " students (" + pct + "%)\n"
                        + "served " + counts.Served + " · turned away " + counts.TurnedAway;
-            row.textColor = problem ? UIHelper.Amber : UIHelper.Green;
-            row.tooltip = health.IsProblem ? health.Message : "Coverage and ridership look healthy.";
+            row.textColor = UIHelper.Green;
+            row.tooltip = "Click to open this route.";
             ushort captured = lineId;
             row.eventClick += (c, p) => OpenLine(captured);
-            _rows.Add(row);
-
-            // Offer Regenerate when coverage has drifted (not for transient traffic issues).
-            if (health.Status == HealthStatus.StaleCoverage)
+            // The row button would otherwise eat the wheel event — forward it to the list so the
+            // mouse wheel scrolls the routes (clamped so it can't overscroll into blank space).
+            row.eventMouseWheel += (c, p) =>
             {
-                UIButton regen = UIHelper.CreateButton(row);
-                regen.text = "⟳";
-                regen.tooltip = "Regenerate this line from the current roster.";
-                regen.size = new Vector2(24f, 22f);
-                regen.relativePosition = new Vector3(row.width - 26f, 2f);
-                ushort capLine = lineId;
-                ushort capBuilding = buildingId;
-                regen.eventClick += (c, p) =>
-                {
-                    p.Use();
-                    StartRegenerate(capLine, capBuilding);
-                };
-            }
+                float maxScroll = Mathf.Max(0f, _rows.Count * (RowHeight + RowGap) - _lineList.height);
+                float ny = Mathf.Clamp(_lineList.scrollPosition.y - p.wheelDelta * (RowHeight + RowGap), 0f, maxScroll);
+                _lineList.scrollPosition = new Vector2(_lineList.scrollPosition.x, ny);
+                p.Use();
+            };
+            _rows.Add(row);
         }
 
         private void StartGenerate()
@@ -200,33 +321,90 @@ namespace SchoolBuses.UI
             ushort buildingId = CurrentBuilding();
             if (buildingId == 0) return;
             Util.Log.DebugLog("User clicked Generate Route for school " + buildingId);
+            _regenArmed = false;
+            _deleteArmed = false;
             _busy = true;
             _generateButton.text = "Generating…";
             _statusLabel.text = string.Empty;
             RouteGenerator.Generate(buildingId, OnGenerated);
         }
 
-        private void StartRegenerate(ushort lineId, ushort buildingId)
+        // Two-stage confirm: the first click warns and arms; the second actually deletes the
+        // school's routes and rebuilds the whole set (route count can change with the roster).
+        private void StartRegenerateAll()
         {
             if (_busy) return;
-            Util.Log.DebugLog("User clicked Regenerate for line " + lineId + " (school " + buildingId + ")");
+            ushort buildingId = CurrentBuilding();
+            if (buildingId == 0) return;
+
+            int count = SchoolLineRegistry.GetLinesForSchool(buildingId).Count;
+            if (!_regenArmed)
+            {
+                _regenArmed = true;
+                _deleteArmed = false;
+                _statusLabel.textColor = UIHelper.Amber;
+                _statusLabel.text = "Deletes all " + count + " route(s) and rebuilds them. Click Regenerate again to confirm.";
+                return;
+            }
+
+            _regenArmed = false;
+            Util.Log.DebugLog("User confirmed Regenerate All for school " + buildingId + " (" + count + " line(s))");
             _busy = true;
+            _statusLabel.textColor = UIHelper.Green;
             _statusLabel.text = "Regenerating…";
-            RouteGenerator.Regenerate(lineId, buildingId, OnGenerated);
+            RouteGenerator.RegenerateSchool(buildingId, OnGenerated);
+        }
+
+        // Two-stage confirm: delete the school's routes WITHOUT rebuilding.
+        private void StartDeleteAll()
+        {
+            if (_busy) return;
+            ushort buildingId = CurrentBuilding();
+            if (buildingId == 0) return;
+
+            int count = SchoolLineRegistry.GetLinesForSchool(buildingId).Count;
+            if (!_deleteArmed)
+            {
+                _deleteArmed = true;
+                _regenArmed = false;
+                _statusLabel.textColor = UIHelper.Red;
+                _statusLabel.text = "Delete all " + count + " route(s)? Click Delete again to confirm.";
+                return;
+            }
+
+            _deleteArmed = false;
+            Util.Log.DebugLog("User confirmed Delete All for school " + buildingId + " (" + count + " line(s))");
+            _busy = true;
+            _statusLabel.textColor = UIHelper.Green;
+            _statusLabel.text = "Deleting…";
+            RouteGenerator.DeleteSchool(buildingId, OnDeleted);
+        }
+
+        private void OnDeleted(int removed)
+        {
+            _busy = false;
+            _deleteArmed = false;
+            _statusLabel.textColor = UIHelper.Green;
+            _statusLabel.text = removed + " route(s) deleted.";
+            _cachedLineCount = -1; // force list rebuild next Update
         }
 
         private void OnGenerated(RouteBuilder.Result result)
         {
-            Util.Log.DebugLog("Generation result: success=" + result.Success + " line=" + result.LineId
-                + " noDepot=" + result.NoDepot + (result.Error != null ? " error=" + result.Error : ""));
+            Util.Log.DebugLog("Generation result: success=" + result.Success + " firstLine=" + result.LineId
+                + " routes=" + result.RoutesBuilt + " noDepot=" + result.NoDepot
+                + (result.Error != null ? " error=" + result.Error : ""));
             _busy = false;
-            _generateButton.text = "+ Generate Route";
+            _regenArmed = false;
+            _deleteArmed = false;
+            _generateButton.text = "+ Generate Routes";
             if (result.Success)
             {
+                string made = result.RoutesBuilt > 1 ? result.RoutesBuilt + " routes created." : "Route created.";
                 _statusLabel.textColor = result.NoDepot ? UIHelper.Amber : UIHelper.Green;
                 _statusLabel.text = result.NoDepot
-                    ? "Line created, but no bus depot serves it — it will stay idle."
-                    : "Route created.";
+                    ? made + " No bus depot serves them yet — they will stay idle."
+                    : made;
             }
             else
             {

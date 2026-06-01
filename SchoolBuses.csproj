@@ -79,6 +79,7 @@
     <Compile Include="HarmonyPatches\SetCurrentVehiclePatch.cs" />
     <Compile Include="HarmonyPatches\ReleaseLinePatch.cs" />
     <Compile Include="Routing\RoutePlanner.cs" />
+    <Compile Include="Routing\RouteZoner.cs" />
     <Compile Include="Routing\RouteBuilder.cs" />
     <Compile Include="Routing\RouteGenerator.cs" />
     <Compile Include="Routing\CoverageTracker.cs" />

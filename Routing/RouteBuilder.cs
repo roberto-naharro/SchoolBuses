@@ -24,10 +24,13 @@ namespace SchoolBuses.Routing
             public ushort LineId;
             public bool NoDepot;   // line created but idle (no bus depot serves the area)
             public string Error;
+            public int RoutesBuilt; // for a multi-route set: how many lines were created
         }
 
         // orderedStops[0] is the school (terminal); the rest are neighbourhood stops.
-        internal static Result Build(ushort schoolId, List<Vector3> orderedStops)
+        // routeNumber > 0 appends " - n" to the generated name (one of a school's several routes);
+        // 0 means a lone route (no suffix).
+        internal static Result Build(ushort schoolId, List<Vector3> orderedStops, int routeNumber)
         {
             var result = new Result();
 
@@ -97,8 +100,8 @@ namespace SchoolBuses.Routing
             // length); the m_budget above already yields ~1 bus when IPT is absent.
             IpteBridge.TrySetVehicleCount(lineId, 1);
 
-            // Name it "<school> - <street in front of the school>".
-            ApplyGeneratedName(lineId, schoolId);
+            // Name it "<school> - <street in front of the school>" (+ " - n" for a numbered route).
+            ApplyGeneratedName(lineId, schoolId, routeNumber);
 
             // Auto-close the loop: re-trigger path computation over the next several seconds
             // (CS1 fails the first pass before the stops settle — same as a manual stop drag).
@@ -207,11 +210,14 @@ namespace SchoolBuses.Routing
             return index;
         }
 
-        // "<school name> - <street name>", e.g. "Elementary School - Pine Avenue".
-        // Falls back to just the school name if no street can be found.
-        private static void ApplyGeneratedName(ushort lineId, ushort schoolId)
+        // "<school name> - <street name>", e.g. "Elementary School - Pine Avenue", with " - n"
+        // appended when the school has several numbered routes. Falls back to just the school name
+        // if no street can be found.
+        private static void ApplyGeneratedName(ushort lineId, ushort schoolId, int routeNumber)
         {
             string name = BuildGeneratedName(schoolId);
+            if (routeNumber > 0)
+                name = name + " - " + routeNumber;
             if (string.IsNullOrEmpty(name))
                 return;
 

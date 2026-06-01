@@ -93,6 +93,13 @@ namespace SchoolBuses
             // Reflect the saved state: the manual knobs are greyed out while auto-tune is on.
             SetManualKnobsEnabled(radius, minStudents, !s.DynamicStopCount);
 
+            var routeLen = (UIComponent)routing.AddSlider("Max pickup-loop length per route (m)", 800f, 4000f, 200f, s.MaxRouteLength,
+                v => { Settings.Instance.MaxRouteLength = v; Settings.Save(); });
+            routeLen.tooltip = "Per-route budget for driving BETWEEN pickups (the trunk to/from the\n"
+                + "school is excluded). A school's stops split into several short one-bus routes so\n"
+                + "no route's pickup loop exceeds this. Nearby neighbourhoods chain into one route;\n"
+                + "spread-out ones split. Shorter = more, shorter routes (one bus keeps up better).";
+
             routing.AddSlider("Coverage warning threshold (%)", 30f, 95f, 5f, s.CoverageThreshold * 100f,
                 v => { Settings.Instance.CoverageThreshold = v / 100f; Settings.Save(); });
 

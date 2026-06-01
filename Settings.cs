@@ -32,6 +32,18 @@ namespace SchoolBuses
         // disabled while this is on.
         public bool DynamicStopCount = true;
 
+        // Multi-route generation. A school's pickup clusters are swept into angular zones, each
+        // becoming its own short one-bus loop (a big school = several short routes, like a real
+        // district). The budget per route is the INTER-STOP pickup-loop length — the distance the
+        // bus drives BETWEEN pickups — NOT the full loop: the trunk legs to/from the school are a
+        // fixed access cost we exclude, so a far sector chains its nearby neighbourhoods into one
+        // route instead of shattering into many one-stop routes. Clusters accrue along the sweep
+        // until the next hop would exceed MaxRouteLength, then a new route starts. Near/dense
+        // neighbourhoods chain more stops; spread-out ones split. Straight-line proxy. Sensible
+        // range ≈ 800–4000 m; 2000 m ≈ 6–8 pickups when neighbourhoods are ~300 m apart.
+        public float MaxRouteLength = 2000f; // metres of inter-stop pickup loop (trunk excluded)
+        public int MaxRoutesPerSchool = 0;   // 0 = uncapped; else hard cap on routes per school
+
         // Make ineligible commuters who pathfind to a school stop give up and re-route,
         // instead of piling up waiting for a bus that will never pick them up.
         public bool EvictIneligibleRiders = true;
