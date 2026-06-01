@@ -109,10 +109,13 @@ namespace SchoolBuses.UI
             _schoolLabel.height = 18f;
 
             _locateButton = UIHelper.CreateButton(_panel);
-            _locateButton.text = "⌖"; // crosshair-ish
+            _locateButton.text = string.Empty;
             _locateButton.tooltip = "Show the school on the map";
             _locateButton.size = new Vector2(28f, 22f);
             _locateButton.relativePosition = new Vector3(Width - 40f, 64f);
+            // Vanilla education (book) icon, centred on the button.
+            UISprite locateIcon = UIHelper.CreateIcon(_locateButton, "InfoIconEducation", 18f);
+            locateIcon.relativePosition = new Vector3((28f - 18f) / 2f, (22f - 18f) / 2f);
             _locateButton.eventClick += OnLocateClick;
 
             _statsLabel = UIHelper.CreateLabel(_panel, 0.74f);

@@ -72,6 +72,20 @@ namespace SchoolBuses.UI
             return cb;
         }
 
+        // A non-interactive icon sprite from the game's default atlas (e.g. "InfoIconEducation",
+        // the vanilla education book/cap). isInteractive=false so it never eats a parent button's click.
+        internal static UISprite CreateIcon(UIComponent parent, string sprite, float size)
+        {
+            UISprite s = parent.AddUIComponent<UISprite>();
+            UIView view = UIView.GetAView();
+            if (view != null)
+                s.atlas = view.defaultAtlas;
+            s.spriteName = sprite;
+            s.size = new Vector2(size, size);
+            s.isInteractive = false;
+            return s;
+        }
+
         internal static UILabel CreateLabel(UIComponent parent, float textScale)
         {
             UILabel l = parent.AddUIComponent<UILabel>();

@@ -302,11 +302,15 @@ namespace SchoolBuses.UI
             row.textVerticalAlignment = UIVerticalAlignment.Top;
             row.textScale = 0.68f;
             row.wordWrap = true;
-            row.text = "● " + name + "\n"
+            row.textPadding = new RectOffset(20, 2, 2, 0); // leave room for the education icon
+            row.text = name + "\n"
                        + stops + " stops · " + covered + " students (" + pct + "%)\n"
                        + "served " + counts.Served + " · turned away " + counts.TurnedAway;
             row.textColor = UIHelper.Green;
             row.tooltip = "Click to open this route.";
+            // Vanilla education (book) icon marking this as a school route.
+            UISprite rowIcon = UIHelper.CreateIcon(row, "InfoIconEducation", 14f);
+            rowIcon.relativePosition = new Vector3(3f, 3f);
             ushort captured = lineId;
             row.eventClick += (c, p) => OpenLine(captured);
             // The row button would otherwise eat the wheel event — forward it to the list so the
