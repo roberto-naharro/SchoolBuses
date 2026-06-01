@@ -18,6 +18,27 @@ Vanilla CS1 school buses are a cosmetic skin with identical mechanics to a regul
 
 ---
 
+## Quick start
+
+### Make a bus line students-only (the basic behaviour)
+
+1. Open any bus line's info panel.
+2. Tick **School line**.
+
+The mod finds the **nearest school automatically** and binds the line to it (that stop becomes the school stop). Only that school's students may board (anywhere on the way to school, only at the school on the way home); everyone else finds another route. Untick to make it a normal line again. This only changes *who* may board: it does not change the line's vehicles or bus count (the yellow one-bus-per-route styling is applied only to routes the mod generates, below).
+
+### Auto-generate a school's routes
+
+1. Subscribe to (or enable) this mod and **Harmony**, then load your city.
+2. Make sure there is a **bus depot** that can serve the area. Each route runs one bus, so a big school needs several buses; without a depot the routes are still created but sit idle.
+3. **Click the school building.** A panel opens on the side.
+4. Press **Generate Routes.** The mod reads the school's current students, lays out one or more short bus routes covering where they live, marks them as school lines, assigns one bus to each, and styles them as school buses.
+5. As your city changes, the routes **regenerate themselves** to keep coverage up (toggle in the options).
+
+To route **every school at once**: mod options, **City-wide routes**, **Generate routes for all schools**.
+
+---
+
 ## How it works
 
 ### Students-only boarding filter

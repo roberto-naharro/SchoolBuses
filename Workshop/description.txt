@@ -18,15 +18,31 @@ In vanilla Cities: Skylines the school bus is just a skin, so anyone boards it. 
 
 [b]Sensible by default, tunable if you want.[/b] The defaults were tuned in-game for good coverage and ridership across school sizes (and work with custom modded schools of any size). Sliders let you trade coverage against bus count, change route length, and more, with a one-click "restore recommended defaults".
 
-[h1]How to use[/h1]
+[h1]Quick start: make a bus line students-only[/h1]
 
-[list]
-[*]Subscribe and enable this mod plus [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2040656402]Harmony[/url].
-[*]Click an elementary school or high school and press [b]Generate Routes[/b].
-[*]Or route the whole city from the mod options under [b]City-wide routes[/b].
-[*]Make sure you have a bus depot (or a few) so the buses can spawn. Each route runs one bus.
-[*]You can also mark any existing bus line as a school line in its info panel.
-[/list]
+This is the basic behaviour. Turn any existing bus line into a school line:
+
+[olist]
+[*]Open the bus line's info panel.
+[*]Tick [b]School line[/b].
+[/olist]
+
+The mod finds the [b]nearest school automatically[/b] and binds the line to it (that stop becomes the school stop). From then on, only that school's students may board (anywhere on the way to school, only at the school on the way home); everyone else finds another route. Untick to make it a normal line again.
+
+Note: this only changes [i]who[/i] may board. It does not change the line's vehicles or how many buses it runs, so set those yourself if you want. (The yellow one-bus-per-route school styling is applied to routes the mod generates for you, below.)
+
+[h1]Quick start: auto-generate a school's routes[/h1]
+
+[olist]
+[*]Subscribe to and enable this mod and [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2040656402]Harmony[/url], then load your city.
+[*]Build a [b]bus depot[/b] that can serve the area. Each route runs one bus, so a big school needs several; without a depot the routes are created but sit idle.
+[*]Click an [b]elementary school or high school[/b]. A panel opens on the side.
+[*]Press [b]Generate Routes[/b]. The mod reads the school's students and creates one or more school bus routes covering where they live. Done.
+[/olist]
+
+[b]Route the whole city at once:[/b] mod options, [b]City-wide routes[/b], [b]Generate routes for all schools[/b].
+
+[i]Tip: as your city grows and families move, routes regenerate themselves to keep coverage up. You can turn that off in the options.[/i]
 
 [h1]Compatibility[/h1]
 

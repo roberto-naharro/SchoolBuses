@@ -22,8 +22,8 @@ namespace SchoolBuses
         // Route generation tunables. The stop count emerges from these two knobs — homes
         // within ClusterRadius form one neighbourhood, and a neighbourhood only gets a stop if
         // it has at least MinClusterStudents students. Defaults (radius 400, min 8) are the values
-        // the in-game experiment found best for real ridership across school sizes — see
-        // .claude/plans/experiment_results.md.
+        // the in-game experiment found best for real ridership across school sizes (see
+        // docs/route-tuning.md).
         public float ClusterRadius = 400f;       // metres; max radius of a pickup neighbourhood
         public int MinClusterStudents = 8;       // a neighbourhood needs this many students for a stop
         public float CoverageThreshold = 0.70f;  // below this a line is flagged stale (health warning)
