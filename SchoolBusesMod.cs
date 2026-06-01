@@ -74,13 +74,13 @@ namespace SchoolBuses
                 + "passenger capacity (accounting for students not all travelling at once).\n"
                 + "Turn off for manual control with the two sliders below.";
 
-            radius = (UIComponent)routing.AddSlider("Cluster radius (m)", 150f, 800f, 25f, s.ClusterRadius,
+            radius = (UIComponent)AddValueSlider(routing,"Cluster radius (m)", 150f, 800f, 25f, s.ClusterRadius,
                 v => { Settings.Instance.ClusterRadius = v; Settings.Save(); });
             radius.tooltip = "Student homes within this distance of each other form one pickup\n"
                 + "neighbourhood (one stop). Larger = fewer, bigger stops.";
             routing.AddSpace(6);
 
-            minStudents = (UIComponent)routing.AddSlider("Min students / cluster", 1f, 40f, 1f, s.MinClusterStudents,
+            minStudents = (UIComponent)AddValueSlider(routing,"Min students / cluster", 1f, 40f, 1f, s.MinClusterStudents,
                 v => { Settings.Instance.MinClusterStudents = UnityEngine.Mathf.RoundToInt(v); Settings.Save(); });
             minStudents.tooltip = "A neighbourhood only gets a stop if at least this many students\n"
                 + "live in it. Higher = fewer stops (small clusters are skipped).";
@@ -95,7 +95,7 @@ namespace SchoolBuses
                 + "(small schools use fewer so they still get stops; big schools use more to limit buses).\n"
                 + "Works for modded school sizes. Set the 1000-capacity reference below.";
 
-            var capMin = (UIComponent)routing.AddSlider("Students / cluster @ 1000 cap", 2f, 20f, 1f, s.CapacityMinFactor * 1000f,
+            var capMin = (UIComponent)AddValueSlider(routing,"Students / cluster @ 1000 cap", 2f, 20f, 1f, s.CapacityMinFactor * 1000f,
                 v => { Settings.Instance.CapacityMinFactor = v / 1000f; Settings.Save(); });
             capMin.tooltip = "Reference for capacity scaling: a 1000-capacity school uses this many students\n"
                 + "per cluster; others scale linearly (clamped 4–14). Only used when scaling is on.";
@@ -107,13 +107,13 @@ namespace SchoolBuses
                 + "fewer than the target below, automatically regenerate that school (current settings),\n"
                 + "so stops follow the students. Turn OFF to regenerate lines only by hand.";
 
-            var covTarget = (UIComponent)routing.AddSlider("Auto-regen below coverage (%)", 0f, 80f, 5f, s.MinCoverageTarget * 100f,
+            var covTarget = (UIComponent)AddValueSlider(routing,"Auto-regen below coverage (%)", 0f, 80f, 5f, s.MinCoverageTarget * 100f,
                 v => { Settings.Instance.MinCoverageTarget = v / 100f; Settings.Save(); });
             covTarget.tooltip = "Coverage of bus-needing students below which auto-regenerate kicks in for a school.\n"
                 + "0 = never. Only used when 'Auto-regenerate' above is on.";
             routing.AddSpace(6);
 
-            var routeLen = (UIComponent)routing.AddSlider("Max pickup-loop / route (m)", 800f, 4000f, 200f, s.MaxRouteLength,
+            var routeLen = (UIComponent)AddValueSlider(routing,"Max pickup-loop / route (m)", 800f, 4000f, 200f, s.MaxRouteLength,
                 v => { Settings.Instance.MaxRouteLength = v; Settings.Save(); });
             routeLen.tooltip = "Per-route budget for driving BETWEEN pickups (the trunk to/from the\n"
                 + "school is excluded). A school's stops split into several short one-bus routes so\n"
@@ -121,7 +121,7 @@ namespace SchoolBuses
                 + "spread-out ones split. Shorter = more, shorter routes (one bus keeps up better).";
             routing.AddSpace(6);
 
-            var maxRoutes = (UIComponent)routing.AddSlider("Trim routes above (per 1000 cap)", 0f, 20f, 1f, s.MaxRoutesPerSchool,
+            var maxRoutes = (UIComponent)AddValueSlider(routing,"Trim routes above (per 1000 cap)", 0f, 20f, 1f, s.MaxRoutesPerSchool,
                 v => { Settings.Instance.MaxRoutesPerSchool = UnityEngine.Mathf.RoundToInt(v); Settings.Save(); });
             maxRoutes.tooltip = "If a school exceeds this many routes (SCALED by its capacity, clamped 3–16:\n"
                 + "so ~10 for a 1000-capacity school, ~3 for a 300 one), drop neighbourhoods beyond the\n"
@@ -129,13 +129,13 @@ namespace SchoolBuses
                 + "schools keep full coverage. 0 = never trim (route count follows min-students).";
             routing.AddSpace(6);
 
-            var catchment = (UIComponent)routing.AddSlider("Catchment distance (m)", 1000f, 5000f, 250f, s.MaxCatchmentDistance,
+            var catchment = (UIComponent)AddValueSlider(routing,"Catchment distance (m)", 1000f, 5000f, 250f, s.MaxCatchmentDistance,
                 v => { Settings.Instance.MaxCatchmentDistance = v; Settings.Save(); });
             catchment.tooltip = "Used only when the route trigger above fires: neighbourhoods farther than this from\n"
                 + "the school are dropped (too far for a school bus). Ignored if the trigger is 0.";
             routing.AddSpace(6);
 
-            var coverage = (UIComponent)routing.AddSlider("Coverage warning threshold (%)", 30f, 95f, 5f, s.CoverageThreshold * 100f,
+            var coverage = (UIComponent)AddValueSlider(routing,"Coverage warning threshold (%)", 30f, 95f, 5f, s.CoverageThreshold * 100f,
                 v => { Settings.Instance.CoverageThreshold = v / 100f; Settings.Save(); });
             routing.AddSpace(6);
 
@@ -226,6 +226,37 @@ namespace SchoolBuses
             c.opacity = enabled ? 1f : 0.35f;
             if (c.parent != null)
                 c.parent.opacity = enabled ? 1f : 0.35f; // dim the whole row (label + slider)
+        }
+
+        // UIHelper sliders don't render their value, so wire the current value into the row's label
+        // ("Label: 42") and keep it updated as the slider moves. Returns the slider as a UIComponent.
+        private static UISlider AddValueSlider(UIHelperBase group, string label, float min, float max,
+            float step, float value, OnValueChanged onChange)
+        {
+            UILabel title = null;
+            var slider = (UISlider)group.AddSlider(label, min, max, step, value, v =>
+            {
+                if (title != null)
+                    title.text = label + ": " + UnityEngine.Mathf.RoundToInt(v);
+                onChange(v);
+            });
+            title = FindRowLabel(slider);
+            if (title != null)
+                title.text = label + ": " + UnityEngine.Mathf.RoundToInt(value);
+            return slider;
+        }
+
+        private static UILabel FindRowLabel(UIComponent slider)
+        {
+            if (slider == null || slider.parent == null)
+                return null;
+            foreach (UIComponent child in slider.parent.components)
+            {
+                var label = child as UILabel;
+                if (label != null)
+                    return label;
+            }
+            return null;
         }
 
         // Shrink a control's label a touch so the longer option rows fit. A checkbox carries its

@@ -47,7 +47,7 @@ Note: this only changes [i]who[/i] may board. It does not change the line's vehi
 [h1]Compatibility[/h1]
 
 [list]
-[*]Improved Public Transport 2: used (when present) to pin exactly one bus per route. Recommended.
+[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=424106600]Improved Public Transport Essentials[/url]: used (when present) to pin exactly one bus per route. Recommended.
 [*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3721119397]Impatient Commuters[/url]: pairs cleanly; students waiting for their school bus won't give up.
 [*]Designed to be non-destructive and to layer on top of vanilla; no known conflicts with other transit mods.
 [/list]
