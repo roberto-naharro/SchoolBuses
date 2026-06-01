@@ -1,1 +1,26 @@
 # Changelog
+
+## [1.0.0](https://github.com/roberto-naharro/SchoolBuses/compare/v0.1.0...v1.0.0) (2026-06-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* enhance school route UI with icons and improved layout
+
+### Features
+
+* add IpteBridge for vehicle count management and integrate with RouteBuilder ([f23decd](https://github.com/roberto-naharro/SchoolBuses/commit/f23decd043651a623f77ca173e42a079e618c1f8))
+* enhance route generation logic to prevent duplicate routes for schools ([44d12a2](https://github.com/roberto-naharro/SchoolBuses/commit/44d12a26c8d84a4a9c339e0839b29e8c2888742b))
+* enhance route generation with experimental parameters and auto-regeneration ([d60d036](https://github.com/roberto-naharro/SchoolBuses/commit/d60d036f1767705422851dd986c66cf55643242c))
+* enhance school route UI with icons and improved layout ([3b863db](https://github.com/roberto-naharro/SchoolBuses/commit/3b863db1327724ab477f3b08e0eb0581733a48e3))
+* initial commit ([416adf6](https://github.com/roberto-naharro/SchoolBuses/commit/416adf64c8f042bcbc43439d0a2edf68302c9463))
+* update description for Improved Public Transport Essentials compatibility ([27ed272](https://github.com/roberto-naharro/SchoolBuses/commit/27ed272b355e238887ee8a8b77e9fc00fcbf11ea))
+* update README and description for clarity, enhance settings UI, and enforce student-only boarding ([8c5e577](https://github.com/roberto-naharro/SchoolBuses/commit/8c5e5778e7550ff45477305c1e771e9a6d4bdb01))
+* update README for quick start instructions, enhance usage details, and improve workshop description ([8cb8445](https://github.com/roberto-naharro/SchoolBuses/commit/8cb844595720baead46927e84129217aac9d59f5))
+
+
+### Bug Fixes
+
+* update description handling in generate_description_vdf.py for proper escaping ([566451d](https://github.com/roberto-naharro/SchoolBuses/commit/566451d793d691ca9a78ce667bf8bac0e2a4cef5))
+
+## Changelog
