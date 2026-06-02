@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.0.0...v1.1.0) (2026-06-02)
+
+
+### Features
+
+* add TlmBridge for Transport Lines Manager integration and update documentation ([2cd0009](https://github.com/roberto-naharro/SchoolBuses/commit/2cd0009c07c7c74ab51229eb685fd58cb54c2c1a))
+
+
+### Bug Fixes
+
+* improve boarding logic to proactively evict ineligible riders from school stops ([1bbde4a](https://github.com/roberto-naharro/SchoolBuses/commit/1bbde4a8b7efbb061d0c22a8669b8f38ce9203fb))
+
 ## [1.0.0](https://github.com/roberto-naharro/SchoolBuses/compare/v0.1.0...v1.0.0) (2026-06-01)
 
 
