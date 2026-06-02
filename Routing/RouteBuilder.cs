@@ -62,9 +62,13 @@ namespace SchoolBuses.Routing
 
             // Default the line to school-bus yellow (player can still recolour it). Setting
             // m_color + the CustomColor flag is the direct equivalent of the vanilla
-            // SetLineColor coroutine.
-            tm.m_lines.m_buffer[lineId].m_color = new Color32(253, 218, 36, 255);
-            tm.m_lines.m_buffer[lineId].m_flags |= TransportLine.Flags.CustomColor;
+            // SetLineColor coroutine. Skipped when Transport Lines Manager is present — it owns
+            // line colour, so we don't fight its colour management.
+            if (!TlmBridge.IsPresent)
+            {
+                tm.m_lines.m_buffer[lineId].m_color = new Color32(253, 218, 36, 255);
+                tm.m_lines.m_buffer[lineId].m_flags |= TransportLine.Flags.CustomColor;
+            }
 
             // Minimal per-line budget (~1 bus); slider stays editable.
             tm.m_lines.m_buffer[lineId].m_budget = SchoolLineBudget;
@@ -101,7 +105,10 @@ namespace SchoolBuses.Routing
             IpteBridge.TrySetVehicleCount(lineId, 1);
 
             // Name it "<school> - <street in front of the school>" (+ " - n" for a numbered route).
-            ApplyGeneratedName(lineId, schoolId, routeNumber);
+            // Skipped when Transport Lines Manager is present — it owns line naming (auto-name), so
+            // we leave the name to TLM rather than have the two write over each other.
+            if (!TlmBridge.IsPresent)
+                ApplyGeneratedName(lineId, schoolId, routeNumber);
 
             // Auto-close the loop: re-trigger path computation over the next several seconds
             // (CS1 fails the first pass before the stops settle — same as a manual stop drag).
