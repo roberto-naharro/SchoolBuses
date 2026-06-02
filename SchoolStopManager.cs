@@ -42,7 +42,6 @@ namespace SchoolBuses
 
         private readonly Dictionary<ushort, int> _eligibleAt = new Dictionary<ushort, int>();
         private readonly Dictionary<ushort, int> _ineligibleAt = new Dictionary<ushort, int>();
-        private int _evictedThisPass;
         private int _passCounter;
 
         // Usage-rate tracking: served count + frame index at the previous report, so we can log
@@ -144,10 +143,11 @@ namespace SchoolBuses
             if ((frameNow & (uint)StepMask) == StepMask)
                 AutoRegenScan(frameNow);
 
-            // Evicting non-students from a school stop is the defining behaviour of a school line
-            // (otherwise it's just a normal line — the player can untick the school-line flag for
-            // that). So it's always on; only the optional debug reporting is conditional.
-            const bool evict = true;
+            // Proactively turn away ineligible riders WAITING FOR A SCHOOL LINE, so they re-route
+            // instead of piling up at a school stop between buses (boarding-time eviction alone would
+            // let them accumulate until a bus arrives). We read the line the citizen will ACTUALLY
+            // ride from their path hop's NEXT stop — line-specific even when the boarding stop is
+            // shared with another line — so we never touch that other line's riders.
             bool report = Log.DebugEnabled;
 
             uint step = Singleton<SimulationManager>.instance.m_currentFrameIndex & (uint)StepMask;
@@ -160,30 +160,36 @@ namespace SchoolBuses
                 if (inst.m_path == 0 || (inst.m_flags & WaitingFlags) != WaitingFlags)
                     continue;
 
-                ushort nodeId = GetStopNode(ref inst);
-                if (nodeId == 0)
+                PathUnit.Position p = _pathUnits[inst.m_path].GetPosition(inst.m_pathPositionIndex >> 1);
+                ushort seg = p.m_segment;
+                if (seg == 0)
+                    continue;
+                ushort stopNode = _segments[seg].m_startNode; // the stop they wait at
+                if (stopNode == 0)
                     continue;
 
-                ushort lineId = _nodes[nodeId].m_transportLine;
+                // The line they intend to ride = the line of the NEXT stop on this hop (line-specific
+                // even when the boarding stop is shared); fall back to the boarding node's line.
+                ushort lineId = _nodes[_segments[seg].m_endNode].m_transportLine;
+                if (lineId == 0)
+                    lineId = _nodes[stopNode].m_transportLine;
                 if (lineId == 0)
                     continue;
 
                 SchoolLineData line;
                 if (!SchoolLineRegistry.TryGet(lineId, out line))
-                    continue; // not a school stop — leave it to the game / Impatient Commuters
+                    continue; // not waiting for a school line — leave them to the game
 
                 bool eligible = CitizenEligibility.IsEligible(
-                    inst.m_citizen, inst.m_targetBuilding, nodeId, ref line);
+                    inst.m_citizen, inst.m_targetBuilding, stopNode, ref line);
 
                 if (report)
-                    Tally(eligible ? _eligibleAt : _ineligibleAt, nodeId);
+                    Tally(eligible ? _eligibleAt : _ineligibleAt, stopNode);
 
-                if (!eligible && evict
-                    && (inst.m_flags & CitizenInstance.Flags.BoredOfWaiting) == 0)
+                if (!eligible && (inst.m_flags & CitizenInstance.Flags.BoredOfWaiting) == 0)
                 {
                     inst.m_flags |= CitizenInstance.Flags.BoredOfWaiting;
                     inst.m_waitCounter = byte.MaxValue;
-                    _evictedThisPass++;
                 }
             }
 
@@ -446,14 +452,10 @@ namespace SchoolBuses
                         + " stop " + nodeId + " — "
                         + elig + " students, " + inelig + " non-students waiting");
                 }
-                if (_evictedThisPass > 0)
-                    Log.DebugLog("Evicted " + _evictedThisPass + " ineligible rider(s) since last report");
             }
 
             _eligibleAt.Clear();
             _ineligibleAt.Clear();
-            if (emit)
-                _evictedThisPass = 0;
         }
 
         // Number of stops in a line's chain (walks m_stops via GetNextStop, guarded).
@@ -470,17 +472,6 @@ namespace SchoolBuses
                 node = TransportLine.GetNextStop(node);
             } while (node != first && node != 0 && n < 256);
             return n;
-        }
-
-        // Stop node the citizen is currently waiting at (from their path), same derivation
-        // Impatient Commuters uses.
-        private ushort GetStopNode(ref CitizenInstance inst)
-        {
-            uint pathId = inst.m_path;
-            if (pathId == 0)
-                return 0;
-            PathUnit.Position pos = _pathUnits[pathId].GetPosition(inst.m_pathPositionIndex >> 1);
-            return _segments[pos.m_segment].m_startNode;
         }
     }
 }
