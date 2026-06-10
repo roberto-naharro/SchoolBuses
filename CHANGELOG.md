@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.1.0...v1.2.0) (2026-06-10)
+
+
+### Features
+
+* implement free school transport feature, allowing students to ride without fare and eliminating maintenance costs for school lines ([2076f0d](https://github.com/roberto-naharro/SchoolBuses/commit/2076f0d63ea93c7de2d7c97c864b590b72b52ee7))
+* implement school-as-depot functionality to spawn buses directly from schools ([58306d1](https://github.com/roberto-naharro/SchoolBuses/commit/58306d12bbb4220d5323b70e76cdf1b44ade203a))
+
+
+### Bug Fixes
+
+* enhance line spawning logic to prevent vehicle placement on incomplete paths ([4d5202f](https://github.com/roberto-naharro/SchoolBuses/commit/4d5202f36b7f1d6714748c9b1fad6220fb6c03a4))
+
 ## [1.1.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.0.0...v1.1.0) (2026-06-02)
 
 
