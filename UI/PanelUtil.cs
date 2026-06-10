@@ -9,6 +9,30 @@ namespace SchoolBuses.UI
     // WorldInfoPanel and for moving the camera.
     internal static class PanelUtil
     {
+        // Dock `panel` (a child of `host`) beside its host, keeping it ON SCREEN. The preferred
+        // host-relative x is used first; if that would clip past either screen edge, the fallback
+        // side is used instead, and the vertical offset is clamped into the screen. Bounds come
+        // from GetUIView().GetScreenResolution(), which is in UI units and therefore correct under
+        // UI scaling mods (UI Resolution) — the reported bug was our panel landing off-screen when
+        // the rescaled vanilla panel sits near a screen edge.
+        internal static void DockBeside(UIComponent panel, UIComponent host,
+            float preferredX, float fallbackX, float y)
+        {
+            Vector2 screen = panel.GetUIView().GetScreenResolution();
+            Vector3 hostAbs = host.absolutePosition;
+
+            float x = preferredX;
+            if (hostAbs.x + x < 0f || hostAbs.x + x + panel.width > screen.x)
+                x = fallbackX;
+
+            if (hostAbs.y + y + panel.height > screen.y)
+                y = screen.y - panel.height - hostAbs.y;
+            if (hostAbs.y + y < 0f)
+                y = -hostAbs.y;
+
+            panel.relativePosition = new Vector3(x, y);
+        }
+
         // Reads the protected `m_InstanceID` field declared on WorldInfoPanel (walks
         // the base-type chain). Returns default(InstanceID) on failure.
         internal static InstanceID GetInstanceID(UIComponent panelComponent, object panelScript)

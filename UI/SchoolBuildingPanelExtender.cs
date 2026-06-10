@@ -71,7 +71,10 @@ namespace SchoolBuses.UI
             // CityServiceWorldInfoPanel's component origin sits above its visible window,
             // so a child docked at y=0 floats too high. Offset down to align with the
             // building panel's title bar (IPT uses the same workaround on this panel).
-            _panel.relativePosition = new Vector3(_wip.component.width + 1f, TitleBarOffset);
+            // Falls back to the LEFT side, clamped on screen, when the right side would clip
+            // (UI Resolution / panel near the screen edge).
+            PanelUtil.DockBeside(_panel, _wip.component,
+                _wip.component.width + 1f, -_panel.width - 1f, TitleBarOffset);
 
             int lineCount = SchoolLineRegistry.GetLinesForSchool(buildingId).Count;
             bool buildingChanged = buildingId != _cachedBuilding;

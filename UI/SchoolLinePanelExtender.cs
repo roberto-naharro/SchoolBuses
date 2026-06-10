@@ -135,8 +135,11 @@ namespace SchoolBuses.UI
         private void DockToPanel()
         {
             // Left of the info panel, dropped to align with the panel's content (the line
-            // panel's component origin sits above its visible title bar).
-            _panel.relativePosition = new Vector3(-Width - 1f, TitleBarOffset);
+            // panel's component origin sits above its visible title bar). Falls back to the
+            // RIGHT side, clamped on screen, when the left side would clip (UI Resolution /
+            // panel near the screen edge).
+            PanelUtil.DockBeside(_panel, _wip.component,
+                -Width - 1f, _wip.component.width + 1f, TitleBarOffset);
         }
 
         private void Refresh(ushort lineId)
