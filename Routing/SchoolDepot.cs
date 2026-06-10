@@ -41,7 +41,11 @@ namespace SchoolBuses.Routing
                 if ((lines[lineId].m_flags & TransportLine.Flags.Created) == TransportLine.Flags.None)
                     continue;
                 if (!lines[lineId].Complete)
-                    continue; // path not committed yet — spawning would fail
+                    continue; // ring not closed — spawning would fail
+                if (LineFinalizer.IsPending(lineId))
+                    continue; // CloseLoop sets Complete at build time, but the stop-to-stop paths
+                              // are still committing (LineFinalizer window) — wait, else the bus
+                              // lands on a line it cannot path along yet
                 if (lines[lineId].CountVehicles(lineId) > 0)
                     continue; // already supplied (one bus per route)
 

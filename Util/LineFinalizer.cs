@@ -42,6 +42,19 @@ namespace SchoolBuses.Util
             lock (Sync) Items.RemoveAll(p => p.LineId == lineId);
         }
 
+        // True while the line's path-commit window is still open. Consumers (SchoolDepot) must not
+        // put vehicles on a line whose stop-to-stop paths may not be applied yet.
+        internal static bool IsPending(ushort lineId)
+        {
+            lock (Sync)
+            {
+                for (int i = 0; i < Items.Count; i++)
+                    if (Items[i].LineId == lineId)
+                        return true;
+                return false;
+            }
+        }
+
         internal static void Clear()
         {
             lock (Sync) Items.Clear();
