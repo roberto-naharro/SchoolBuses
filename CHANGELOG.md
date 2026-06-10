@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.2.0...v1.3.0) (2026-06-10)
+
+
+### Features
+
+* add DockBeside utility to manage panel positioning and prevent clipping on screen edges ([8553392](https://github.com/roberto-naharro/SchoolBuses/commit/8553392af8c05793d2e378692cf9d98214bce559))
+
 ## [1.2.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.1.0...v1.2.0) (2026-06-10)
 
 
