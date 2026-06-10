@@ -61,6 +61,23 @@ namespace SchoolBuses
                 + "school: it spawns there and parks back there. No bus depot required.\n"
                 + "Turn off to supply school lines from your city's bus depots instead.";
 
+            var freeTransport = (UIComponent)general.AddCheckbox("School transport is free (no fare, no maintenance)",
+                s.FreeSchoolTransport,
+                v =>
+                {
+                    Settings.Instance.FreeSchoolTransport = v;
+                    Settings.Save();
+                    // Apply to existing school lines right away (on the sim thread).
+                    ColossalFramework.Singleton<SimulationManager>.instance.AddAction(() =>
+                    {
+                        if (v) Util.SchoolFares.ApplyAll();
+                        else Util.SchoolFares.RestoreAll();
+                    });
+                });
+            freeTransport.tooltip = "School buses are a school service, not paid transit: students ride free and\n"
+                + "school lines cost no transit maintenance. Turn off to charge the normal bus\n"
+                + "fare and upkeep on school lines.";
+
             var routing = helper.AddGroup("Route generation");
 
             // Declared first so the checkbox handler (below) can enable/disable them; assigned

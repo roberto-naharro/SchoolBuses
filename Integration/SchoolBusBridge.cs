@@ -44,6 +44,14 @@ namespace SchoolBuses.Integration
             return lineId != 0 && SchoolLineRegistry.IsSchoolLine(lineId);
         }
 
+        // True if the line is a registered school line (generated OR manually flagged). Lets a line
+        // manager treat school lines as a free school service (e.g. skip charging maintenance).
+        // Reflection contract: "IsSchoolLine(ushort) : bool".
+        public static bool IsSchoolLine(ushort lineId)
+        {
+            return lineId != 0 && SchoolLineRegistry.IsSchoolLine(lineId);
+        }
+
         // True if this line's bus is supplied BY ITS SCHOOL (school-as-depot): mod-generated school
         // line, feature enabled, school still standing. City depots never serve such a line, so a
         // line manager can hide/disable its depot selector for it and show no depot cost.
@@ -62,7 +70,7 @@ namespace SchoolBuses.Integration
         }
 
         // Lets a consumer confirm the integration is present and which contract version it is.
-        public const int ApiVersion = 2; // v2: + IsSchoolOwnedLine(ushort)
+        public const int ApiVersion = 2; // v2: + IsSchoolOwnedLine(ushort), IsSchoolLine(ushort)
         public static int GetApiVersion() => ApiVersion;
     }
 }

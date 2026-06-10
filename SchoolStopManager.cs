@@ -102,6 +102,9 @@ namespace SchoolBuses
         // emits a final, marked SCHOOL health snapshot.
         private volatile bool _forceFinalReport;
 
+        // One-shot free-fare sweep (instance field: a fresh extension instance per level load).
+        private bool _faresSwept;
+
         public override void OnUpdate(float realTimeDelta, float simulationTimeDelta)
         {
             if (!Settings.Instance.Enabled)
@@ -145,6 +148,14 @@ namespace SchoolBuses
 
             // School-as-depot: keep each school line supplied with its one bus (self-throttled).
             SchoolDepot.Tick(frameNow);
+
+            // One-time sweep per session: lines from older saves predate free school transport.
+            if (!_faresSwept)
+            {
+                _faresSwept = true;
+                if (Settings.Instance.FreeSchoolTransport)
+                    SchoolFares.ApplyAll();
+            }
 
             // Proactively turn away ineligible riders WAITING FOR A SCHOOL LINE, so they re-route
             // instead of piling up at a school stop between buses (boarding-time eviction alone would

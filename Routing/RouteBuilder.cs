@@ -73,6 +73,9 @@ namespace SchoolBuses.Routing
             // Minimal per-line budget (~1 bus); slider stays editable.
             tm.m_lines.m_buffer[lineId].m_budget = SchoolLineBudget;
 
+            // School transport is a school service: students ride free (no fare income).
+            SchoolFares.ApplyFree(lineId);
+
             Log.DebugLog("Created line " + lineId + " for school " + schoolId
                 + "; adding " + orderedStops.Count + " stops (closed loop)");
 

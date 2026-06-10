@@ -182,6 +182,8 @@ namespace SchoolBuses.UI
             {
                 Log.DebugLog("User unflagged line " + lineId + " as a school line");
                 SchoolLineRegistry.Unregister(lineId);
+                // Back to a normal paid line (field write belongs on the sim thread).
+                Singleton<SimulationManager>.instance.AddAction(() => SchoolFares.RestoreDefault(lineId));
                 _cachedLine = 0; // force refresh
                 return;
             }
@@ -193,6 +195,8 @@ namespace SchoolBuses.UI
             {
                 Log.DebugLog("Detected school " + schoolId + " at stop " + schoolStop + " for line " + lineId);
                 SchoolLineRegistry.Register(lineId, new SchoolLineData(schoolId, schoolStop, false));
+                // School transport is free for students (field write belongs on the sim thread).
+                Singleton<SimulationManager>.instance.AddAction(() => SchoolFares.ApplyFree(lineId));
                 _cachedLine = 0;
             }
             else

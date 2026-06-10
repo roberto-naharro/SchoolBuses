@@ -80,6 +80,8 @@
     <Compile Include="HarmonyPatches\SetCurrentVehiclePatch.cs" />
     <Compile Include="HarmonyPatches\ReleaseLinePatch.cs" />
     <Compile Include="HarmonyPatches\DepotStartTransferPatch.cs" />
+    <Compile Include="HarmonyPatches\LineMaintenancePatch.cs" />
+    <Compile Include="Util\SchoolFares.cs" />
     <Compile Include="Routing\RoutePlanner.cs" />
     <Compile Include="Routing\RouteZoner.cs" />
     <Compile Include="Routing\Experiment.cs" />

@@ -24,6 +24,12 @@ namespace SchoolBuses
         // the school. Off = classic behaviour (city depots supply school lines).
         public bool SpawnFromSchool = true;
 
+        // School transport is a school service, not paid transit: students ride FREE
+        // (TransportLine.m_ticketPrice = 0 → no fare income) and the line costs NO transit
+        // maintenance (LineMaintenancePatch zeroes the per-vehicle/per-passenger upkeep for
+        // school lines). Off = school lines charge and cost like normal bus lines.
+        public bool FreeSchoolTransport = true;
+
         // Route generation tunables. The stop count emerges from these two knobs — homes
         // within ClusterRadius form one neighbourhood, and a neighbourhood only gets a stop if
         // it has at least MinClusterStudents students. Defaults (radius 400, min 8) are the values
