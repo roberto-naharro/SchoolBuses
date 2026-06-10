@@ -143,6 +143,9 @@ namespace SchoolBuses
             if ((frameNow & (uint)StepMask) == StepMask)
                 AutoRegenScan(frameNow);
 
+            // School-as-depot: keep each school line supplied with its one bus (self-throttled).
+            SchoolDepot.Tick(frameNow);
+
             // Proactively turn away ineligible riders WAITING FOR A SCHOOL LINE, so they re-route
             // instead of piling up at a school stop between buses (boarding-time eviction alone would
             // let them accumulate until a bus arrives). We read the line the citizen will ACTUALLY

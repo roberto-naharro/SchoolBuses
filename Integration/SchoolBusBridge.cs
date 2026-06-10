@@ -44,8 +44,25 @@ namespace SchoolBuses.Integration
             return lineId != 0 && SchoolLineRegistry.IsSchoolLine(lineId);
         }
 
+        // True if this line's bus is supplied BY ITS SCHOOL (school-as-depot): mod-generated school
+        // line, feature enabled, school still standing. City depots never serve such a line, so a
+        // line manager can hide/disable its depot selector for it and show no depot cost.
+        // Reflection contract: "IsSchoolOwnedLine(ushort) : bool".
+        public static bool IsSchoolOwnedLine(ushort lineId)
+        {
+            if (lineId == 0 || !Settings.Instance.Enabled || !Settings.Instance.SpawnFromSchool)
+                return false;
+            SchoolLineData data;
+            if (!SchoolLineRegistry.TryGet(lineId, out data) || !data.ModGenerated)
+                return false;
+            if (data.SchoolBuildingId == 0)
+                return false;
+            var buildings = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
+            return (buildings[data.SchoolBuildingId].m_flags & Building.Flags.Created) != Building.Flags.None;
+        }
+
         // Lets a consumer confirm the integration is present and which contract version it is.
-        public const int ApiVersion = 1;
+        public const int ApiVersion = 2; // v2: + IsSchoolOwnedLine(ushort)
         public static int GetApiVersion() => ApiVersion;
     }
 }

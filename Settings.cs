@@ -19,6 +19,11 @@ namespace SchoolBuses
 
         public bool Enabled = true;
 
+        // School-as-depot: generated school lines get their bus spawned BY THE SCHOOL itself
+        // (SchoolDepot + DepotStartTransferPatch), so no bus depot is needed and the bus parks at
+        // the school. Off = classic behaviour (city depots supply school lines).
+        public bool SpawnFromSchool = true;
+
         // Route generation tunables. The stop count emerges from these two knobs — homes
         // within ClusterRadius form one neighbourhood, and a neighbourhood only gets a stop if
         // it has at least MinClusterStudents students. Defaults (radius 400, min 8) are the values

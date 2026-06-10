@@ -116,7 +116,8 @@ namespace SchoolBuses.Routing
 
             result.Success = true;
             result.LineId = lineId;
-            result.NoDepot = !HasBusDepotInArea();
+            // With school-as-depot the school supplies the bus, so a missing city depot is fine.
+            result.NoDepot = !Settings.Instance.SpawnFromSchool && !HasBusDepotInArea();
             return result;
         }
 
@@ -173,7 +174,8 @@ namespace SchoolBuses.Routing
 
             result.Success = true;
             result.LineId = lineId;
-            result.NoDepot = !HasBusDepotInArea();
+            // With school-as-depot the school supplies the bus, so a missing city depot is fine.
+            result.NoDepot = !Settings.Instance.SpawnFromSchool && !HasBusDepotInArea();
             return result;
         }
 

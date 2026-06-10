@@ -54,6 +54,13 @@ namespace SchoolBuses
             general.AddCheckbox("Enable mod", s.Enabled,
                 v => { Settings.Instance.Enabled = v; Settings.Save(); });
 
+            var schoolDepot = (UIComponent)general.AddCheckbox("Buses spawn from the school (no depot needed)",
+                s.SpawnFromSchool,
+                v => { Settings.Instance.SpawnFromSchool = v; Settings.Save(); });
+            schoolDepot.tooltip = "Generated school routes get their bus from the school itself, like a real\n"
+                + "school: it spawns there and parks back there. No bus depot required.\n"
+                + "Turn off to supply school lines from your city's bus depots instead.";
+
             var routing = helper.AddGroup("Route generation");
 
             // Declared first so the checkbox handler (below) can enable/disable them; assigned

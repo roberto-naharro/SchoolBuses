@@ -79,10 +79,12 @@
     <Compile Include="HarmonyPatches\TransportArriveAtSourcePatch.cs" />
     <Compile Include="HarmonyPatches\SetCurrentVehiclePatch.cs" />
     <Compile Include="HarmonyPatches\ReleaseLinePatch.cs" />
+    <Compile Include="HarmonyPatches\DepotStartTransferPatch.cs" />
     <Compile Include="Routing\RoutePlanner.cs" />
     <Compile Include="Routing\RouteZoner.cs" />
     <Compile Include="Routing\Experiment.cs" />
     <Compile Include="Routing\ExperimentClock.cs" />
+    <Compile Include="Routing\SchoolDepot.cs" />
     <Compile Include="Routing\RouteBuilder.cs" />
     <Compile Include="Routing\RouteGenerator.cs" />
     <Compile Include="Routing\CoverageTracker.cs" />
