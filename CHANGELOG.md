@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.3.0...v1.4.0) (2026-06-11)
+
+
+### Features
+
+* implement path ownership and transit entry gate for school lines, excluding non-students from route planning ([ca1be17](https://github.com/roberto-naharro/SchoolBuses/commit/ca1be1730a8dea50a1368dc2949ebb9b4fb67b2c))
+
 ## [1.3.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.2.0...v1.3.0) (2026-06-10)
 
 
