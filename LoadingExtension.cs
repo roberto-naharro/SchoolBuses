@@ -29,6 +29,10 @@ namespace SchoolBuses
 
             // Plug into Impatient Commuters' generic exemption API (no-op if it's absent).
             ImpatientCommutersBridge.Register();
+
+            // Apply the school-line pathfind gate to TM:PE's custom pathfinder (runtime Harmony
+            // patch on its method, nothing edited on their side; no-op if TM:PE is absent).
+            HarmonyPatches.TmpeTransitEntryGatePatch.TryApply();
         }
 
         public override void OnLevelUnloading()

@@ -24,6 +24,13 @@ namespace SchoolBuses
         // the school. Off = classic behaviour (city depots supply school lines).
         public bool SpawnFromSchool = true;
 
+        // Pathfinding-level exclusion: non-students never even consider a school line when
+        // planning a route (TransitEntryGatePatch), so they stop walking to school stops only to
+        // be turned away (and stop oscillating/despawning when no alternative existed). Inert
+        // under TM:PE (its custom pathfinder bypasses the patched method) — there the
+        // boarding-time rejection + eviction still apply.
+        public bool HideLinesFromNonStudents = true;
+
         // School transport is a school service, not paid transit: students ride FREE
         // (TransportLine.m_ticketPrice = 0 → no fare income) and the line costs NO transit
         // maintenance (LineMaintenancePatch zeroes the per-vehicle/per-passenger upkeep for
@@ -91,6 +98,13 @@ namespace SchoolBuses
             false;
 #endif
 
+        // Settings-file migration. Bumped when a default changes for a REASON (not taste) and old
+        // saved values should be corrected. XmlSerializer note: a fresh object starts at the field
+        // initializer 0; files from before this field existed deserialize as 0 too — exactly the
+        // ones that need migrating. Save() stamps the current version.
+        private const int CurrentSettingsVersion = 2;
+        public int SettingsVersion = 0;
+
         private static string FilePath => Path.Combine(DataLocation.localApplicationData, FileName);
 
         public static Settings Load()
@@ -104,6 +118,7 @@ namespace SchoolBuses
                         var ser = new XmlSerializer(typeof(Settings));
                         var loaded = (Settings)ser.Deserialize(sr);
                         Log.DebugEnabled = loaded.DebugLogging;
+                        Migrate(loaded);
                         return loaded;
                     }
                 }
@@ -115,10 +130,31 @@ namespace SchoolBuses
             return new Settings();
         }
 
+        private static void Migrate(Settings s)
+        {
+            if (s.SettingsVersion >= CurrentSettingsVersion)
+                return;
+
+            // v2: the in-game tuning experiment showed auto-tune's proxy fitness does not track
+            // real ridership (it produces 1-stop 15–20 km loops nobody can ride); the validated
+            // manual defaults replaced it. Settings files from before that change still carry
+            // DynamicStopCount=true — switch them to the validated configuration once.
+            if (s.SettingsVersion < 2 && s.DynamicStopCount)
+            {
+                s.DynamicStopCount = false;
+                Log.Info("Settings migrated to v2: auto-tune disabled in favour of the validated "
+                    + "defaults (it generated long, unusable routes). Re-enable it in the options "
+                    + "if you really want it.");
+            }
+
+            s.SettingsVersion = CurrentSettingsVersion;
+        }
+
         public static void Save()
         {
             try
             {
+                Instance.SettingsVersion = CurrentSettingsVersion;
                 using (var sw = new StreamWriter(FilePath))
                 {
                     var ser = new XmlSerializer(typeof(Settings));

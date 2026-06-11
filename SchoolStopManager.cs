@@ -4,6 +4,7 @@ using ColossalFramework;
 using ColossalFramework.UI;
 using ICities;
 using SchoolBuses.Data;
+using SchoolBuses.HarmonyPatches;
 using SchoolBuses.Routing;
 using SchoolBuses.Util;
 using UnityEngine;
@@ -105,6 +106,11 @@ namespace SchoolBuses
         // One-shot free-fare sweep (instance field: a fresh extension instance per level load).
         private bool _faresSwept;
 
+        // Diagnostics for the pathfind gate (debug logging only): evictions + sampled non-student
+        // waiters per report window.
+        private int _evictedThisWindow;
+        private int _waiterSamplesThisWindow;
+
         public override void OnUpdate(float realTimeDelta, float simulationTimeDelta)
         {
             if (!Settings.Instance.Enabled)
@@ -198,12 +204,27 @@ namespace SchoolBuses
                     inst.m_citizen, inst.m_targetBuilding, stopNode, ref line);
 
                 if (report)
+                {
                     Tally(eligible ? _eligibleAt : _ineligibleAt, stopNode);
+
+                    // DIAGNOSTIC: how did this non-student get a path to a school stop with the
+                    // pathfind gate on? owner=0 means an untracked path-creation entry point;
+                    // owner!=0 means the gate saw it and let it through (or pre-gate stale path).
+                    if (!eligible && _waiterSamplesThisWindow < 3)
+                    {
+                        _waiterSamplesThisWindow++;
+                        Log.DebugLog("Waiter sample: instance " + i + " citizen " + inst.m_citizen
+                            + " line " + lineId + " stop " + stopNode + " path " + inst.m_path
+                            + " owner=" + Data.PathOwnership.Get(inst.m_path));
+                    }
+                }
 
                 if (!eligible && (inst.m_flags & CitizenInstance.Flags.BoredOfWaiting) == 0)
                 {
                     inst.m_flags |= CitizenInstance.Flags.BoredOfWaiting;
                     inst.m_waitCounter = byte.MaxValue;
+                    if (report)
+                        _evictedThisWindow++;
                 }
             }
 
@@ -213,6 +234,27 @@ namespace SchoolBuses
             {
                 bool force = _forceFinalReport;
                 bool emit = force || (++_passCounter % ReportEveryPasses) == 0;
+                if (emit)
+                {
+                    // Pathfind-gate telemetry: checks = school-segment entries the gate evaluated;
+                    // unknownOwner that never drains ⇒ an unhooked path-creation entry point.
+                    int entriesV = System.Threading.Interlocked.Exchange(ref TransitGate.DbgEntries, 0);
+                    int entriesT = System.Threading.Interlocked.Exchange(ref TransitGate.DbgEntriesTmpe, 0);
+                    int lineSeen = System.Threading.Interlocked.Exchange(ref TransitGate.DbgLineSeen, 0);
+                    int checks = System.Threading.Interlocked.Exchange(ref TransitGate.DbgChecks, 0);
+                    int allowed = System.Threading.Interlocked.Exchange(ref TransitGate.DbgAllowedStudents, 0);
+                    int blocked = System.Threading.Interlocked.Exchange(ref TransitGate.DbgBlocked, 0);
+                    int unknown = System.Threading.Interlocked.Exchange(ref TransitGate.DbgUnknownOwner, 0);
+                    Log.DebugLog("PathGate: entriesVanilla=" + entriesV + " entriesTmpe=" + entriesT
+                        + " lineSeen=" + lineSeen + " lastLine=" + TransitGate.DbgLastLine
+                        + " checks=" + checks + " allowedStudents=" + allowed
+                        + " blocked=" + blocked + " unknownOwner=" + unknown
+                        + " | mirror=" + SchoolLineRegistry.MirrorCountDebug()
+                        + " dict=" + SchoolLineRegistry.CountDebug()
+                        + " | evicted=" + _evictedThisWindow + " since last report");
+                    _evictedThisWindow = 0;
+                    _waiterSamplesThisWindow = 0;
+                }
                 ReportAndReset(emit);
                 if (force)
                 {

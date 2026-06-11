@@ -61,6 +61,13 @@ namespace SchoolBuses
                 + "school: it spawns there and parks back there. No bus depot required.\n"
                 + "Turn off to supply school lines from your city's bus depots instead.";
 
+            var hideLines = (UIComponent)general.AddCheckbox("Hide school lines from non-students (route planning)",
+                s.HideLinesFromNonStudents,
+                v => { Settings.Instance.HideLinesFromNonStudents = v; Settings.Save(); });
+            hideLines.tooltip = "Adults and other schools' students never consider a school line when planning\n"
+                + "a trip, so they stop walking to school stops just to be turned away.\n"
+                + "Works with both the vanilla pathfinder and TM:PE's.";
+
             var freeTransport = (UIComponent)general.AddCheckbox("School transport is free (no fare, no maintenance)",
                 s.FreeSchoolTransport,
                 v =>

@@ -19,6 +19,34 @@ namespace SchoolBuses.Data
             new Dictionary<ushort, SchoolLineData>();
         private static readonly object Sync = new object();
 
+        // Lock-free line→school mirror for PATHFIND WORKER THREADS (the transit-entry gate runs
+        // there; a Dictionary read racing a sim-thread write is not safe enough on that path).
+        // Single-word array reads/writes are atomic; 0 = not a school line. Kept in sync with
+        // Lines by every mutator below.
+        private static readonly ushort[] SchoolByLine = new ushort[TransportManager.MAX_LINE_COUNT];
+
+        // School served by this line, or 0. Safe from any thread.
+        public static ushort SchoolOfLineFast(ushort lineId)
+        {
+            return lineId < SchoolByLine.Length ? SchoolByLine[lineId] : (ushort)0;
+        }
+
+        // Diagnostics: how many lines the lock-free mirror currently maps (compare with Count to
+        // detect a mirror that fell out of sync with the dictionary).
+        public static int MirrorCountDebug()
+        {
+            int n = 0;
+            for (int i = 0; i < SchoolByLine.Length; i++)
+                if (SchoolByLine[i] != 0)
+                    n++;
+            return n;
+        }
+
+        public static int CountDebug()
+        {
+            return Lines.Count;
+        }
+
         // Cheap hot-path guard so per-frame scanners can skip entirely when no school
         // lines exist. Volatile int is enough (monotonic-ish; exactness not required).
         public static bool AnyLines => Lines.Count > 0;
@@ -41,6 +69,8 @@ namespace SchoolBuses.Data
             lock (Sync)
             {
                 Lines[lineId] = data;
+                if (lineId < SchoolByLine.Length)
+                    SchoolByLine[lineId] = data.SchoolBuildingId;
             }
             Log.DebugLog("Registered school line " + lineId + " school=" + data.SchoolBuildingId
                 + " stop=" + data.SchoolStopNode + " generated=" + data.ModGenerated);
@@ -52,6 +82,8 @@ namespace SchoolBuses.Data
             {
                 if (Lines.Remove(lineId))
                     Log.DebugLog("Unregistered school line " + lineId);
+                if (lineId < SchoolByLine.Length)
+                    SchoolByLine[lineId] = 0;
             }
         }
 
@@ -84,6 +116,7 @@ namespace SchoolBuses.Data
             lock (Sync)
             {
                 Lines.Clear();
+                System.Array.Clear(SchoolByLine, 0, SchoolByLine.Length);
             }
         }
 
@@ -102,7 +135,11 @@ namespace SchoolBuses.Data
                         dead.Add(kv.Key);
                 }
                 foreach (var id in dead)
+                {
                     Lines.Remove(id);
+                    if (id < SchoolByLine.Length)
+                        SchoolByLine[id] = 0;
+                }
                 if (dead.Count > 0)
                     Log.Info("Pruned " + dead.Count + " stale school-line entries");
             }
@@ -154,6 +191,8 @@ namespace SchoolBuses.Data
                         ushort lineId = r.ReadUInt16();
                         var entry = new SchoolLineData(r.ReadUInt16(), r.ReadUInt16(), r.ReadBoolean());
                         Lines[lineId] = entry;
+                        if (lineId < SchoolByLine.Length)
+                            SchoolByLine[lineId] = entry.SchoolBuildingId;
                     }
                 }
                 Log.Info("Loaded " + count + " school line(s) from save");
