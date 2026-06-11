@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.4.0...v1.5.0) (2026-06-11)
+
+
+### Features
+
+* update README and description to clarify school bus functionality and features ([d0184dd](https://github.com/roberto-naharro/SchoolBuses/commit/d0184dd2dc42e83930cec3108ae079cc905e7c28))
+
 ## [1.4.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.3.0...v1.4.0) (2026-06-11)
 
 
