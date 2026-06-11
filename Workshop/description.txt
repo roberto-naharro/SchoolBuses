@@ -8,7 +8,11 @@ In vanilla Cities: Skylines the school bus is just a skin, so anyone boards it. 
 
 [b]Students only.[/b] On a line you mark as a school line, only children and teenagers enrolled at that school may board. Adults, tourists and other schools' students are turned away and find another route.
 
-[b]Like a real school run.[/b] Students board at any neighbourhood stop on the way to school, and only at the school itself on the way home.
+[b]Invisible to everyone else.[/b] Non-students do not even consider a school line when planning a trip, so they never crowd your school stops. Works with the vanilla pathfinder and with TM:PE.
+
+[b]No depot needed.[/b] The school is the depot: generated routes get their bus from the school itself. It spawns there and parks back there, like a real school bus.
+
+[b]Free for students.[/b] School transport is a school service, not paid transit: no fares and no transit maintenance on school lines (you can turn this off if you prefer paid lines).
 
 [b]One click per school.[/b] Click a school or high school and press Generate Routes. The mod reads the current student roster and lays out tidy bus routes covering where the students actually live, splitting a big school into several short routes (one bus each), just like a real district.
 
@@ -27,7 +31,7 @@ This is the basic behaviour. Turn any existing bus line into a school line:
 [*]Tick [b]School line[/b].
 [/olist]
 
-The mod finds the [b]nearest school automatically[/b] and binds the line to it (that stop becomes the school stop). From then on, only that school's students may board (anywhere on the way to school, only at the school on the way home); everyone else finds another route. Untick to make it a normal line again.
+The mod finds the [b]nearest school automatically[/b] and binds the line to it (that stop becomes the school stop). From then on, only that school's students may board, riding between home and school; everyone else finds another route (non-students stop planning trips with this line at all). Untick to make it a normal line again.
 
 Note: this only changes [i]who[/i] may board. It does not change the line's vehicles or how many buses it runs, so set those yourself if you want. (The yellow one-bus-per-route school styling is applied to routes the mod generates for you, below.)
 
@@ -35,8 +39,7 @@ Note: this only changes [i]who[/i] may board. It does not change the line's vehi
 
 [olist]
 [*]Subscribe to and enable this mod and [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2040656402]Harmony[/url], then load your city.
-[*]Build a [b]bus depot[/b] that can serve the area. Each route runs one bus, so a big school needs several; without a depot the routes are created but sit idle.
-[*]Click an [b]elementary school or high school[/b]. A panel opens on the side.
+[*]Click an [b]elementary school or high school[/b]. A panel opens on the side. No bus depot needed: the school spawns its own buses.
 [*]Press [b]Generate Routes[/b]. The mod reads the school's students and creates one or more school bus routes covering where they live. Done.
 [/olist]
 
@@ -47,9 +50,11 @@ Note: this only changes [i]who[/i] may board. It does not change the line's vehi
 [h1]Compatibility[/h1]
 
 [list]
-[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=424106600]Improved Public Transport Essentials[/url]: used (when present) to pin exactly one bus per route. Recommended.
+[*]TM:PE: fully supported, including its pathfinder and Parking AI (non-students stay off school lines there too).
+[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=424106600]Improved Public Transport Essentials[/url]: pairs cleanly (per-line vehicles, costs; school buses correctly show no depot cost).
 [*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3721119397]Impatient Commuters[/url]: pairs cleanly; students waiting for their school bus won't give up.
-[*]Designed to be non-destructive and to layer on top of vanilla; no known conflicts with other transit mods.
+[*]UI Resolution: panels stay on screen at any UI scale.
+[*]Designed to be non-destructive and to layer on top of vanilla; every patch is scoped to school lines or falls back to vanilla. No known conflicts with other transit mods.
 [/list]
 
 [h1]Requirements[/h1]
