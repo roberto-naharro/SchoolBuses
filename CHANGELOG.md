@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.4.0...v1.5.0) (2026-06-17)
+
+
+### Features
+
+* add day-only service option for school lines to prevent night operation ([03d0785](https://github.com/roberto-naharro/SchoolBuses/commit/03d0785a2568abd05bfd15a64656cdb023d07d02))
+* update README and description to clarify school bus functionality and features ([d0184dd](https://github.com/roberto-naharro/SchoolBuses/commit/d0184dd2dc42e83930cec3108ae079cc905e7c28))
+
 ## [1.4.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.3.0...v1.4.0) (2026-06-11)
 
 
