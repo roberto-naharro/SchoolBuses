@@ -86,6 +86,7 @@
     <Compile Include="HarmonyPatches\PathfindGatePatches.cs" />
     <Compile Include="Data\PathOwnership.cs" />
     <Compile Include="Util\SchoolFares.cs" />
+    <Compile Include="Util\SchoolSchedule.cs" />
     <Compile Include="Routing\RoutePlanner.cs" />
     <Compile Include="Routing\RouteZoner.cs" />
     <Compile Include="Routing\Experiment.cs" />

@@ -61,6 +61,19 @@ namespace SchoolBuses
                 + "school: it spawns there and parks back there. No bus depot required.\n"
                 + "Turn off to supply school lines from your city's bus depots instead.";
 
+            var dayOnly = (UIComponent)general.AddCheckbox("School buses run during the day only",
+                s.DayOnlyService,
+                v =>
+                {
+                    Settings.Instance.DayOnlyService = v;
+                    Settings.Save();
+                    ColossalFramework.Singleton<SimulationManager>.instance.AddAction(
+                        () => Util.SchoolSchedule.ApplyAll());
+                });
+            dayOnly.tooltip = "School lines stop running at night, so buses don't circle a school that has\n"
+                + "closed (useful with the Real Time mod). Off = run day and night.\n"
+                + "You can still override any single line with the day/night buttons in its panel.";
+
             var hideLines = (UIComponent)general.AddCheckbox("Hide school lines from non-students (route planning)",
                 s.HideLinesFromNonStudents,
                 v => { Settings.Instance.HideLinesFromNonStudents = v; Settings.Save(); });

@@ -46,11 +46,29 @@ namespace SchoolBuses.Routing
                     continue; // CloseLoop sets Complete at build time, but the stop-to-stop paths
                               // are still committing (LineFinalizer window) — wait, else the bus
                               // lands on a line it cannot path along yet
+                if (!ActiveNow(ref lines[lineId]))
+                    continue; // line disabled for the current period (the player's day/night
+                              // toggle): the game despawns its bus then, and we must NOT resurrect
+                              // it — otherwise a bus keeps circling a school closed for the night
+                              // (e.g. with the Real Time mod). Vanilla day/night despawn handles
+                              // the existing bus; this just stops the respawn.
                 if (lines[lineId].CountVehicles(lineId) > 0)
                     continue; // already supplied (one bus per route)
 
                 TrySpawn(lineId, data.SchoolBuildingId, lines);
             }
+        }
+
+        // Whether the line should be running RIGHT NOW, applying the same day/night gate vanilla
+        // TransportLine.SimulationStep uses: it is OFF when the period-appropriate disabled flag is
+        // set (DisabledNight at night, DisabledDay by day). Lets a player schedule a school line to
+        // day-only (vanilla line panel), and school-as-depot stops fighting the night shutdown.
+        private static bool ActiveNow(ref TransportLine line)
+        {
+            TransportLine.Flags disabledNow = Singleton<SimulationManager>.instance.m_isNightTime
+                ? TransportLine.Flags.DisabledNight
+                : TransportLine.Flags.DisabledDay;
+            return (line.m_flags & disabledNow) == TransportLine.Flags.None;
         }
 
         private static void TrySpawn(ushort lineId, ushort schoolId, TransportLine[] lines)

@@ -24,6 +24,13 @@ namespace SchoolBuses
         // the school. Off = classic behaviour (city depots supply school lines).
         public bool SpawnFromSchool = true;
 
+        // Day-only service: generated school lines get the vanilla "no night service" flag
+        // (TransportLine.Flags.DisabledNight), so their buses stop at night and don't circle a
+        // school that has closed (especially with the Real Time mod). Off = run day and night, as
+        // before. Applies to all registered school lines when toggled; you can still override any
+        // single line with the day/night buttons in its info panel.
+        public bool DayOnlyService = false;
+
         // Pathfinding-level exclusion: non-students never even consider a school line when
         // planning a route (TransitEntryGatePatch), so they stop walking to school stops only to
         // be turned away (and stop oscillating/despawning when no alternative existed). Inert

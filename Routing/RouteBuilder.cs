@@ -75,6 +75,8 @@ namespace SchoolBuses.Routing
 
             // School transport is a school service: students ride free (no fare income).
             SchoolFares.ApplyFree(lineId);
+            // Apply day-only service if enabled (no night buses circling a closed school).
+            SchoolSchedule.Apply(lineId);
 
             Log.DebugLog("Created line " + lineId + " for school " + schoolId
                 + "; adding " + orderedStops.Count + " stops (closed loop)");
