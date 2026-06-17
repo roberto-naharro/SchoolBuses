@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.5.0...v1.6.0) (2026-06-17)
+
+
+### Features
+
+* add service hour restrictions for school buses, including configurable start and end times ([fc404db](https://github.com/roberto-naharro/SchoolBuses/commit/fc404db8be25a97a76cc75b706dfd275562d9a53))
+
+
+### Bug Fixes
+
+* restrict school lines to bus types only, hiding panel for other transit types ([dc86954](https://github.com/roberto-naharro/SchoolBuses/commit/dc86954e9c7ec19eddba44cf116c2a8442bc46e4))
+
 ## [1.5.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.4.0...v1.5.0) (2026-06-17)
 
 
