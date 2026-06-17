@@ -45,7 +45,9 @@ namespace SchoolBuses.UI
             }
 
             ushort lineId = CurrentLine();
-            if (lineId == 0)
+            // School lines apply to BUSES only — the line panel is shared by every transit type, so
+            // hide our panel for metro/tram/train/etc. (and never let one be flagged a school line).
+            if (lineId == 0 || !IsBusLine(lineId))
             {
                 if (_panel.isVisible) _panel.Hide();
                 return;
@@ -178,8 +180,8 @@ namespace SchoolBuses.UI
         private void OnSchoolCheckChanged(UIComponent c, bool isChecked)
         {
             ushort lineId = CurrentLine();
-            if (lineId == 0)
-                return;
+            if (lineId == 0 || !IsBusLine(lineId))
+                return; // school lines are bus-only (the panel is hidden for other types anyway)
 
             if (!isChecked)
             {
@@ -261,6 +263,14 @@ namespace SchoolBuses.UI
         {
             InstanceID id = PanelUtil.GetInstanceID(_wip.component, _wipScript);
             return id.TransportLine;
+        }
+
+        // School lines are bus lines only. Metro, tram, train, monorail, ferry, etc. share this
+        // same info panel, so the School-line panel must not appear on them.
+        private static bool IsBusLine(ushort lineId)
+        {
+            TransportInfo info = Singleton<TransportManager>.instance.m_lines.m_buffer[lineId].Info;
+            return info != null && info.m_transportType == TransportInfo.TransportType.Bus;
         }
 
         private static string BuildingName(ushort buildingId)
