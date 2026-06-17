@@ -31,6 +31,14 @@ namespace SchoolBuses
         // single line with the day/night buttons in its info panel.
         public bool DayOnlyService = false;
 
+        // Service window: when on, school buses only run between ServiceStartHour and ServiceEndHour
+        // (game clock, 0-23). Outside the window the bus is sent off and not respawned. Reads the
+        // same clock the Real Time mod slows down, so it tracks school hours without depending on
+        // Real Time. Off = run any time of day. Requires school-as-depot (SpawnFromSchool).
+        public bool RestrictServiceHours = false;
+        public int ServiceStartHour = 7;
+        public int ServiceEndHour = 16;
+
         // Pathfinding-level exclusion: non-students never even consider a school line when
         // planning a route (TransitEntryGatePatch), so they stop walking to school stops only to
         // be turned away (and stop oscillating/despawning when no alternative existed). Inert

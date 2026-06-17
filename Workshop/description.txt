@@ -14,6 +14,8 @@ In vanilla Cities: Skylines the school bus is just a skin, so anyone boards it. 
 
 [b]Free for students.[/b] School transport is a school service, not paid transit: no fares and no transit maintenance on school lines (you can turn this off if you prefer paid lines).
 
+[b]Runs on a schedule.[/b] Keep buses off when the school is closed: a day-only switch, or a custom start/end hour. It reads the in-game clock, so with the Real Time mod the buses simply follow school hours, no idle buses circling a closed school at night.
+
 [b]One click per school.[/b] Click a school or high school and press Generate Routes. The mod reads the current student roster and lays out tidy bus routes covering where the students actually live, splitting a big school into several short routes (one bus each), just like a real district.
 
 [b]One click for the whole city.[/b] Prefer to do it all at once? Generate routes for every school in the city from the mod options (with a heads-up about how many lines and buses that means).

@@ -74,6 +74,24 @@ namespace SchoolBuses
                 + "closed (useful with the Real Time mod). Off = run day and night.\n"
                 + "You can still override any single line with the day/night buttons in its panel.";
 
+            var restrictHours = (UIComponent)general.AddCheckbox("Restrict school buses to set hours",
+                s.RestrictServiceHours,
+                v => { Settings.Instance.RestrictServiceHours = v; Settings.Save(); });
+            restrictHours.tooltip = "Run school buses only between the start and end hours below (game clock).\n"
+                + "Outside the window the bus is sent off; it returns when the window reopens.\n"
+                + "Tracks the Real Time clock automatically. Needs 'buses spawn from the school'.";
+
+            var startHour = (UIComponent)AddValueSlider(general, "Service start hour", 0f, 23f, 1f, s.ServiceStartHour,
+                v => { Settings.Instance.ServiceStartHour = UnityEngine.Mathf.RoundToInt(v); Settings.Save(); });
+            startHour.tooltip = "Hour buses start running (0-23). Match your school's morning start.";
+
+            var endHour = (UIComponent)AddValueSlider(general, "Service end hour", 0f, 23f, 1f, s.ServiceEndHour,
+                v => { Settings.Instance.ServiceEndHour = UnityEngine.Mathf.RoundToInt(v); Settings.Save(); });
+            endHour.tooltip = "Hour buses stop running (0-23). Match a bit after your school's end time.";
+
+            foreach (UIComponent ctl in new[] { startHour, endHour })
+                ShrinkLabel(ctl);
+
             var hideLines = (UIComponent)general.AddCheckbox("Hide school lines from non-students (route planning)",
                 s.HideLinesFromNonStudents,
                 v => { Settings.Instance.HideLinesFromNonStudents = v; Settings.Save(); });

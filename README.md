@@ -100,6 +100,14 @@ School transport is a school service, not paid transit (toggleable):
 - **Fares**: the game's own representation of "free" is a zero per-line ticket price (`BusAI.GetTicketPrice` returns `TransportLine.m_ticketPrice` raw when the vehicle is on a line, and `HumanAI.EnterVehicle` charges income only when it is non-zero). The mod simply writes the field at generation, on manual flagging, and in a one-time sweep for lines from older saves; no patch involved.
 - **Maintenance**: weekly upkeep is charged inside `TransportLine.SimulationStep` from two fields on the *shared* bus `TransportInfo`, so a prefix zeroes them only for the duration of a school line's own step and a postfix restores them. Line steps run serially on the simulation thread, so the swap can never leak onto a city bus line's charge.
 
+### Running hours (Real Time friendly)
+
+A school line should not run when the school is closed. Three levers, increasingly precise:
+
+- **Per-line day/night**: the vanilla sun/moon buttons set `DisabledDay` / `DisabledNight`; the game despawns the bus for the off period, and the school-as-depot spawner respects the same flag (it reads `m_isNightTime ? DisabledNight : DisabledDay`, exactly as the game and IPTE do) so it no longer resurrects a bus the game just retired.
+- **Day-only service**: one option sets the "no night service" flag on every school line at once (and on newly generated ones), instead of toggling each by hand.
+- **Service window**: for finer control (e.g. with the Real Time mod, whose school day is roughly 8-14), an optional start/end hour. The spawner reads `SimulationManager.m_currentGameTime`, the same clock Real Time slows down, so the window tracks school hours with no dependency on Real Time. Outside the window the bus is released and not respawned until it reopens (the day/night flag can only express day vs night, so arbitrary hours are enforced here directly).
+
 ### School lines do not exist for non-students
 
 Boarding-time rejection alone still lets adults walk to a school stop, wait, get refused and re-path, sometimes oscillating onto the same line until they despawn. The proper fix is at **route planning**: a pedestrian path can only step onto a transit line through one pathfinder method (`PathFind.ProcessItemPublicTransport`, invoked per transit stop node), and a plain Harmony prefix there skips school lines unless the path being computed belongs to a student of that school.
@@ -120,7 +128,7 @@ The building panel lists each route with read-only health, plus the school's **w
 
 Content Manager, mod options:
 
-- **School Buses:** enable mod; buses spawn from the school (no depot needed); hide school lines from non-students (route planning); school transport is free (no fare, no maintenance).
+- **School Buses:** enable mod; buses spawn from the school (no depot needed); hide school lines from non-students (route planning); school transport is free (no fare, no maintenance); day-only service; restrict service to set hours (start / end hour) for Real Time-style school schedules.
 - **Route generation:** auto-tune toggle; cluster radius; min students / cluster; scale-min-by-capacity (plus the 1000-capacity reference); auto-regenerate toggle and coverage trigger; max pickup-loop per route; an optional capacity-scaled route trim (trigger plus catchment distance) for players who'd rather have fewer buses than full coverage; coverage warning threshold; **Restore recommended defaults**.
 - **City-wide routes:** generate / delete all school routes.
 - **Debug:** enable debug logging (traces actions, generation, boarding, the usage reports, and the pathfind-gate telemetry).

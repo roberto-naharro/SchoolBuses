@@ -49,9 +49,21 @@ namespace SchoolBuses.Routing
                 if (!ActiveNow(ref lines[lineId]))
                     continue; // line disabled for the current period (the player's day/night
                               // toggle): the game despawns its bus then, and we must NOT resurrect
-                              // it — otherwise a bus keeps circling a school closed for the night
-                              // (e.g. with the Real Time mod). Vanilla day/night despawn handles
-                              // the existing bus; this just stops the respawn.
+                              // it — otherwise a bus keeps circling a school closed for the night.
+                              // Vanilla day/night despawn handles the existing bus; we just stop the
+                              // respawn.
+
+                if (!WithinServiceHours())
+                {
+                    // Outside the configured service window. The vanilla day/night flag can't
+                    // express arbitrary hours, so we end the run ourselves: release the bus and
+                    // don't respawn until the window reopens. With Real Time this matches school
+                    // hours (the game clock it slows is the same one we read).
+                    if (lines[lineId].CountVehicles(lineId) > 0)
+                        ReleaseLineVehicles(lineId, lines);
+                    continue;
+                }
+
                 if (lines[lineId].CountVehicles(lineId) > 0)
                     continue; // already supplied (one bus per route)
 
@@ -69,6 +81,43 @@ namespace SchoolBuses.Routing
                 ? TransportLine.Flags.DisabledNight
                 : TransportLine.Flags.DisabledDay;
             return (line.m_flags & disabledNow) == TransportLine.Flags.None;
+        }
+
+        // Whether school buses may run RIGHT NOW under the configured service window. Reads the
+        // game clock (SimulationManager.m_currentGameTime) — the same clock the Real Time mod slows
+        // down — so the window lines up with school hours without any dependency on Real Time. Off
+        // (RestrictServiceHours == false) = run any time of day.
+        private static bool WithinServiceHours()
+        {
+            if (!Settings.Instance.RestrictServiceHours)
+                return true;
+            System.DateTime now = Singleton<SimulationManager>.instance.m_currentGameTime;
+            float hour = now.Hour + now.Minute / 60f;
+            int start = Settings.Instance.ServiceStartHour;
+            int end = Settings.Instance.ServiceEndHour;
+            if (start == end)
+                return true; // full 24 h
+            return start < end
+                ? hour >= start && hour < end
+                : hour >= start || hour < end; // window wraps past midnight (unusual for schools)
+        }
+
+        // Send a school line's bus off (end of service). Releasing the vehicle is how the line
+        // stops running for a custom window the vanilla day/night flag can't represent. Capture the
+        // next-in-chain before releasing, since the chain changes underneath us.
+        private static void ReleaseLineVehicles(ushort lineId, TransportLine[] lines)
+        {
+            VehicleManager vm = Singleton<VehicleManager>.instance;
+            var vehicles = vm.m_vehicles.m_buffer;
+            ushort v = lines[lineId].m_vehicles;
+            int guard = 0;
+            while (v != 0 && guard++ < 16384)
+            {
+                ushort next = vehicles[v].m_nextLineVehicle;
+                vm.ReleaseVehicle(v);
+                v = next;
+            }
+            Log.Info("SchoolDepot: line " + lineId + " outside service hours — bus released");
         }
 
         private static void TrySpawn(ushort lineId, ushort schoolId, TransportLine[] lines)
