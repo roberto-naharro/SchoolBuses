@@ -69,8 +69,18 @@ namespace SchoolBuses.Integration
             return (buildings[data.SchoolBuildingId].m_flags & Building.Flags.Created) != Building.Flags.None;
         }
 
+        // School (Education building) this line serves, or 0 if it is not a registered school line.
+        // The id indexes BuildingManager.m_buildings. NOTE: this is the bound building and is not
+        // re-validated — if the school was bulldozed the id may be stale, so a consumer that needs a
+        // live building should check its Building.Flags.Created. Allocation-free; safe from any thread.
+        // Reflection contract: "GetSchoolBuilding(ushort) : ushort".
+        public static ushort GetSchoolBuilding(ushort lineId)
+        {
+            return lineId == 0 ? (ushort)0 : SchoolLineRegistry.SchoolOfLineFast(lineId);
+        }
+
         // Lets a consumer confirm the integration is present and which contract version it is.
-        public const int ApiVersion = 2; // v2: + IsSchoolOwnedLine(ushort), IsSchoolLine(ushort)
+        public const int ApiVersion = 3; // v3: + GetSchoolBuilding(ushort)
         public static int GetApiVersion() => ApiVersion;
     }
 }

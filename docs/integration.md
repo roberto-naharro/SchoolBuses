@@ -17,7 +17,19 @@ bool IsProtectedRider(ushort citizenInstanceId, ushort stopNodeId);
 // True if the stop node belongs to a registered school line (regardless of who waits there).
 bool IsSchoolStop(ushort stopNodeId);
 
-// Integration contract version (currently 1). Also confirms the API is present.
+// True if the line is a registered school line (generated OR manually flagged).
+bool IsSchoolLine(ushort lineId);
+
+// True if this line's bus is supplied by its school (school-as-depot): mod-generated,
+// feature enabled, school still standing. City depots never serve such a line.
+bool IsSchoolOwnedLine(ushort lineId);
+
+// School (Education building) this line serves, or 0 if it is not a registered school line.
+// The id indexes BuildingManager.m_buildings. NOTE: it is the bound building and is not
+// re-validated, so check Building.Flags.Created if you need a guaranteed-live building.
+ushort GetSchoolBuilding(ushort lineId);
+
+// Integration contract version (currently 3). Also confirms the API is present.
 int GetApiVersion();
 ```
 
@@ -87,7 +99,7 @@ Lines Manager's per-hour budget** (set the line to 0 vehicles outside school hou
 correct, existing place for time-of-day vehicle control.
 
 This mirrors the existing Impatient Commuters integration and needs no changes on the School Buses
-side: the contract above is stable and versioned (`GetApiVersion()` returns `1`).
+side: the contract above is stable and versioned (`GetApiVersion()` returns `3`).
 
 ## For Transport Lines Manager
 
