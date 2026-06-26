@@ -73,30 +73,42 @@ dependency on School Buses). The stop node is the same one Real Time already res
 citizen; School Buses uses `NetManager.m_nodes[stopNode].m_transportLine` internally to find the line,
 so pass the node the citizen is physically waiting at.
 
-### Time of day, pickup vs. drop-off: already handled, by design
+### Pickup vs. drop-off directionality: handled by eligibility, by design
 
-School Buses intentionally has **no concept of game time or school hours**: that is Real Time's
-domain, and duplicating it here would couple the two mods and be wrong whenever Real Time is absent.
-The "morning is pickup, end of school is drop-off" behaviour does **not** need any time code in School
-Buses, because it falls out of the eligibility rule combined with Real Time's own scheduling:
+The "morning is pickup, end of school is drop-off" behaviour needs **no time code** in School Buses,
+because it falls out of the eligibility rule combined with the resident scheduler (vanilla, or Real
+Time when present):
 
-A student may board only when `target == school` **or** `target == home`. Real Time decides which one is
-set, and when:
+A student may board only when `target == school` **or** `target == home`. The scheduler decides which
+one is set, and when:
 
-- **Morning:** Real Time schedules `GoToSchool`, so `target == school`: students board at neighbourhood
-  stops and ride to the school. That is *pickup*.
-- **End of school:** Real Time sends them home, so `target == home`: students board at the school and
-  ride home. That is *drop-off*.
+- **Morning:** the scheduler sends them to school, so `target == school`: students board at
+  neighbourhood stops and ride to the school. That is *pickup*.
+- **End of school:** the scheduler sends them home, so `target == home`: students board at the school
+  and ride home. That is *drop-off*.
 - **Outside school hours:** no student has a school/home school-trip target, so no one is eligible and
   the bus simply carries nobody.
 
-So directionality is a *consequence* of Real Time setting the target; School Buses just reads the
+So directionality is a *consequence* of the scheduler setting the target; School Buses just reads the
 result. There is nothing to add on either side for this.
 
-The remaining wish, "don't run the buses outside school hours", is fleet scheduling, not a School
-Buses concern: a school line runs one bus like any line. Idling it off-hours is done with **Transport
-Lines Manager's per-hour budget** (set the line to 0 vehicles outside school hours), which is the
-correct, existing place for time-of-day vehicle control.
+### Running on a schedule: built in, reads the in-game clock
+
+School Buses **does** now have an optional concept of service hours, used only to decide when a school
+line's buses are allowed to *spawn* (it does not touch eligibility or directionality above). This is
+self-contained and needs **no integration on your side**:
+
+- A **day-only** switch parks a school line's buses at night (it gates on
+  `SimulationManager.m_isNightTime`, the same flag the vanilla day/night line toggle uses).
+- A **custom service window** (start/end hour in the mod options) lets buses spawn only inside that
+  range. It reads `SimulationManager.m_currentGameTime` directly, so it tracks **whatever clock the
+  game is running** — including Real Time's slowed clock — with no bridge or API call. The window
+  wraps correctly across midnight (`start > end`).
+
+Because it reads the live game clock rather than coupling to Real Time, it is correct whether Real
+Time is installed or not, and there is nothing for Real Time (or TLM) to do. If you would rather drive
+vehicle counts by hour yourself, **Transport Lines Manager's per-hour budget** still works on these
+lines (set the line to 0 vehicles off-hours); the two are independent.
 
 This mirrors the existing Impatient Commuters integration and needs no changes on the School Buses
 side: the contract above is stable and versioned (`GetApiVersion()` returns `3`).
