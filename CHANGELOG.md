@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.6.0...v1.7.0) (2026-06-26)
+
+
+### Features
+
+* add GetSchoolBuilding method and update API version to 3 ([88134d4](https://github.com/roberto-naharro/SchoolBuses/commit/88134d42d84daceab3c141be5eeb7bbb3b9e1c0a))
+
 ## [1.6.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.5.0...v1.6.0) (2026-06-17)
 
 
