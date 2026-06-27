@@ -31,6 +31,66 @@ namespace SchoolBuses.Util
             return Nearest(position, maxDistance, out point);
         }
 
+        // Finds the nearest EXISTING bus-line stop node within maxDistance of `position`, returning
+        // its id (0 if none) and its exact world position in `nodePos`. Scans the same node grid the
+        // game uses (270×270 @ 64 m, chained via NetNode.m_nextGridNode).
+        //
+        // Why: a generated stop dropped a few metres from an existing bus stop makes the game create
+        // a near-DUPLICATE node rather than reuse the existing one (it only snaps onto a node within
+        // ~2.5 m). Two stops a few metres apart leave the line's closing hop unpathable (the line
+        // shows "incomplete") and can place the stop on the opposite side of the road. Reusing the
+        // existing node's exact position makes AddStop bind to that node instead.
+        internal static ushort FindNearestBusStopNode(Vector3 position, float maxDistance, out Vector3 nodePos)
+        {
+            NetManager nm = Singleton<NetManager>.instance;
+            var nodes = nm.m_nodes.m_buffer;
+            var lines = Singleton<TransportManager>.instance.m_lines.m_buffer;
+
+            int cellRange = Mathf.Max(1, Mathf.CeilToInt(maxDistance / CellSize));
+            int cx = Mathf.Clamp((int)(position.x / CellSize + HalfOffset), 0, GridResolution - 1);
+            int cz = Mathf.Clamp((int)(position.z / CellSize + HalfOffset), 0, GridResolution - 1);
+
+            float bestSqr = maxDistance * maxDistance;
+            nodePos = position;
+            ushort bestNode = 0;
+
+            for (int dz = -cellRange; dz <= cellRange; dz++)
+            {
+                int gz = cz + dz;
+                if (gz < 0 || gz >= GridResolution) continue;
+                for (int dx = -cellRange; dx <= cellRange; dx++)
+                {
+                    int gx = cx + dx;
+                    if (gx < 0 || gx >= GridResolution) continue;
+
+                    ushort nodeId = nm.m_nodeGrid[gz * GridResolution + gx];
+                    int guard = 0;
+                    while (nodeId != 0)
+                    {
+                        ushort lineId = nodes[nodeId].m_transportLine;
+                        if (lineId != 0)
+                        {
+                            // Only reuse a BUS stop — our generated buses must be able to use it.
+                            TransportInfo info = lines[lineId].Info;
+                            if (info != null && info.m_transportType == TransportInfo.TransportType.Bus)
+                            {
+                                float sqr = SqrDistance2D(nodes[nodeId].m_position, position);
+                                if (sqr < bestSqr)
+                                {
+                                    bestSqr = sqr;
+                                    nodePos = nodes[nodeId].m_position;
+                                    bestNode = nodeId;
+                                }
+                            }
+                        }
+                        nodeId = nodes[nodeId].m_nextGridNode;
+                        if (++guard > 32768) break;
+                    }
+                }
+            }
+            return bestNode;
+        }
+
         // Core grid scan: finds the nearest drivable road segment and the closest point on
         // its centreline. Returns the segment id (0 if none) and sets `point` accordingly.
         private static ushort Nearest(Vector3 position, float maxDistance, out Vector3 point)

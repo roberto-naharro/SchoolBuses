@@ -37,6 +37,10 @@ namespace SchoolBuses.Routing
         // Students whose home is within WalkToSchool of the school just walk — no stop for them.
         internal const float WalkToSchool = 350f;
         private const float SnapSearchRadius = 200f;
+        // Reuse an existing bus stop within this distance of the school frontage as the school stop
+        // (rather than drop a near-duplicate). ~50 m reaches across a wide road to a stop on the
+        // far side, which is the reported "stop on the opposite side of the school" case.
+        private const float ExistingStopReuseRadius = 50f;
 
         // Search grid. Radii top out around the distance a student will actually walk to a stop
         // (≈500 m), so the catchment never assumes an unrealistic walk.
@@ -117,6 +121,15 @@ namespace SchoolBuses.Routing
             Vector3 snappedSchool = RoadUtil.SnapToRoad(schoolPos, 200f, out schoolSnapped);
             if (schoolSnapped)
                 schoolPos = snappedSchool;
+
+            // If a bus stop already exists right at the school frontage (another of this school's
+            // routes, or a city bus stop), REUSE its exact node position so AddStop binds to that
+            // node instead of dropping a near-duplicate a few metres off — a near-duplicate leaves
+            // the closing hop unpathable (line shows "incomplete") and can land the stop on the
+            // opposite side of the road. (User report: "if there is already a stop, use it.")
+            Vector3 existingStop;
+            if (RoadUtil.FindNearestBusStopNode(schoolPos, ExistingStopReuseRadius, out existingStop) != 0)
+                schoolPos = existingStop;
 
             // One point per student (homes repeat for siblings), so cluster sizes are student
             // counts. We cluster ALL students by their own spatial distribution — the SCHOOL
