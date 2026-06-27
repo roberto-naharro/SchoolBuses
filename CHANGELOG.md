@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.7.0...v1.8.0) (2026-06-27)
+
+
+### Features
+
+* implement nearest existing bus stop reuse logic to prevent duplicate stops ([ba59775](https://github.com/roberto-naharro/SchoolBuses/commit/ba597751cd6c85bc6c2dee3973ab9acd9eabafa7))
+* introduce optional service hours for school lines, allowing bus spawning control ([96d5604](https://github.com/roberto-naharro/SchoolBuses/commit/96d56043ea9f2e2044c403e5a9b1e58959d0247c))
+
 ## [1.7.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.6.0...v1.7.0) (2026-06-26)
 
 
