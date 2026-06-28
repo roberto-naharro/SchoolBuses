@@ -269,13 +269,58 @@ namespace SchoolBuses.Integration
             return ExternalControl.IsVehicleSupplyEnabled(lineId);
         }
 
+        // ───────────────────────────── Panel placement (UI) ─────────────────────────────
+        // Move School Buses' own side panels (the school-building routes panel and the school-line
+        // panel) so they don't cover your UI. Pure presentation — independent of spawn control, valid
+        // any time. Both panels stay clamped on screen regardless.
+
+        /// <summary>
+        /// Force School Buses' side panels to dock on a given side of the vanilla info panel.
+        /// </summary>
+        /// <param name="rightSide">true = right of the info panel, false = left.</param>
+        /// <returns>true (always applied).</returns>
+        /// <remarks>Reflection contract: "SetPanelSide(bool) : bool".</remarks>
+        public static bool SetPanelSide(bool rightSide)
+        {
+            ExternalControl.SetPanelSide(rightSide ? 1 : 2);
+            return true;
+        }
+
+        /// <summary>
+        /// Revert the panel side to School Buses' own automatic choice (which already avoids TLM's
+        /// widened line panel).
+        /// </summary>
+        /// <returns>true (always applied).</returns>
+        /// <remarks>Reflection contract: "ResetPanelSide() : bool".</remarks>
+        public static bool ResetPanelSide()
+        {
+            ExternalControl.SetPanelSide(0);
+            return true;
+        }
+
+        /// <summary>
+        /// Add a vertical offset to the panels' top (e.g. to clear a taller title bar or your own
+        /// header). Pass 0 to remove it. Ignored if NaN/Infinity.
+        /// </summary>
+        /// <param name="pixels">Extra pixels added to the panels' default top offset.</param>
+        /// <returns>true if applied; false if pixels is NaN/Infinity.</returns>
+        /// <remarks>Reflection contract: "SetPanelTopOffset(single) : bool".</remarks>
+        public static bool SetPanelTopOffset(float pixels)
+        {
+            if (float.IsNaN(pixels) || float.IsInfinity(pixels))
+                return false;
+            ExternalControl.SetPanelTopOffset(pixels);
+            return true;
+        }
+
         // ───────────────────────────── Version ─────────────────────────────
 
         /// <summary>The integration contract version; also confirms the API is present.</summary>
         // v5: + external spawn control (SetExternalSpawnControl/IsExternalSpawnControl), pause/resume
         //      (SetSpawningPaused, global + per-line), vehicle supply (SetVehicleSupplyEnabled, global
         //      + per-line), introspection; SetServiceHours/ClearServiceHours now return bool.
-        public const int ApiVersion = 5;
+        // v6: + panel placement (SetPanelSide/ResetPanelSide/SetPanelTopOffset).
+        public const int ApiVersion = 6;
 
         /// <summary>Returns <see cref="ApiVersion"/>.</summary>
         /// <remarks>Reflection contract: "GetApiVersion() : int32".</remarks>

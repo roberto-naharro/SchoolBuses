@@ -160,18 +160,15 @@ namespace SchoolBuses.UI
         private void DockToPanel()
         {
             // Dock to one side of the line info panel, dropped to align with its content (the line
-            // panel's component origin sits above its visible title bar). DockBeside flips to the
-            // other side, clamped on screen, when the preferred one would clip.
+            // panel's component origin sits above its visible title bar).
             //
-            // Default: prefer the LEFT (the panel's right side holds vanilla content). But when
+            // Default side: the LEFT (the panel's right side holds vanilla content). But when
             // Transport Lines Manager is present it widens this panel to ~800 px and fills it with
-            // tabs, so the LEFT edge is no longer free — we'd sit on top of TLM's UI. In that case
-            // prefer the RIGHT, beyond TLM's full width, so we clear it and sit just beside the box.
-            float right = _wip.component.width + 1f;
-            float left = -Width - 1f;
-            bool tlm = Integration.TlmBridge.IsPresent;
-            PanelUtil.DockBeside(_panel, _wip.component,
-                tlm ? right : left, tlm ? left : right, TitleBarOffset);
+            // tabs, so the LEFT edge is no longer free — default to the RIGHT then, beyond TLM's full
+            // width. A partner mod can override the side / top offset via SchoolBusBridge.SetPanelSide
+            // / SetPanelTopOffset. DockBesideManaged flips to the other side, clamped on screen, when
+            // the chosen one would clip.
+            PanelUtil.DockBesideManaged(_panel, _wip.component, Integration.TlmBridge.IsPresent, TitleBarOffset);
         }
 
         private void Refresh(ushort lineId)

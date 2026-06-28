@@ -53,7 +53,7 @@ bool IsSchoolOwnedLine(ushort lineId);
 // Building.Flags.Created if you need a guaranteed-live building.
 ushort GetSchoolBuilding(ushort lineId);
 
-// Integration contract version (currently 5). Also confirms the API is present.
+// Integration contract version (currently 6). Also confirms the API is present.
 int GetApiVersion();
 ```
 
@@ -117,6 +117,26 @@ bool SetVehicleSupplyEnabled(ushort lineId, bool enabled);
 bool IsSpawningPaused();               // global
 bool IsSpawningPaused(ushort lineId);  // for a line
 bool IsVehicleSupplyEnabled(ushort lineId);
+```
+
+#### Panel placement
+
+School Buses adds two small side panels to the vanilla info panels — a routes panel on a school
+building, and a "School line" panel on a transport line. By default they dock beside the info panel,
+and the automatic choice already tries to avoid TLM (the line panel sits past TLM's widened line
+panel; the building routes panel stays on the right but is pushed down below the building window when
+TLM is present). If they still cover your UI, move them with the calls below. This is pure presentation (independent of the spawn
+control above) and can be called any time; the panels stay clamped on screen regardless.
+
+```csharp
+// Force both panels to a side of the info panel (true = right, false = left).
+bool SetPanelSide(bool rightSide);
+
+// Back to School Buses' automatic choice (which already avoids TLM's widened line panel).
+bool ResetPanelSide();
+
+// Add a vertical offset (px) to the panels' top, e.g. to clear a taller header. 0 removes it.
+bool SetPanelTopOffset(float pixels);
 ```
 
 ## Mod-specific notes

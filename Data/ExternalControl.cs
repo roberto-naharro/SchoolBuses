@@ -113,5 +113,19 @@ namespace SchoolBuses.Data
                 return v;
             return _globalSupplyEnabled;
         }
+
+        // ───────────────────────── panel placement (UI) ─────────────────────────
+        // Lets a partner mod move School Buses' own side panels (the school-building routes panel and
+        // the school-line panel) out of its UI. Independent of spawn control — pure presentation.
+        //   side: 0 = School Buses' own automatic choice, 1 = force right of the info panel, 2 = left
+        //   PanelTopOffset: extra pixels added to the panels' default vertical offset.
+        private static volatile int _panelSide;       // 0 = auto, 1 = right, 2 = left
+        private static volatile float _panelTopOffset; // extra px (default 0)
+
+        internal static int PanelSide => _panelSide;
+        internal static void SetPanelSide(int side) => _panelSide = side;
+
+        internal static float PanelTopOffset => _panelTopOffset;
+        internal static void SetPanelTopOffset(float pixels) => _panelTopOffset = pixels;
     }
 }

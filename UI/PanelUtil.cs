@@ -33,6 +33,23 @@ namespace SchoolBuses.UI
             panel.relativePosition = new Vector3(x, y);
         }
 
+        // Docks `panel` beside `host`, honouring any partner-mod panel-placement override
+        // (SchoolBusBridge.SetPanelSide / SetPanelTopOffset). `defaultRight` is the panel's own
+        // preferred side when no override is set; `defaultTop` its own vertical offset. The opposite
+        // side is always the on-screen-clip fallback.
+        internal static void DockBesideManaged(UIComponent panel, UIComponent host,
+            bool defaultRight, float defaultTop)
+        {
+            int side = Data.ExternalControl.PanelSide; // 0 = auto, 1 = right, 2 = left
+            bool right = side == 1 || (side != 2 && defaultRight);
+            float top = defaultTop + Data.ExternalControl.PanelTopOffset;
+
+            const float gap = 1f;
+            float preferred = right ? host.width + gap : -panel.width - gap;
+            float fallback = right ? -panel.width - gap : host.width + gap;
+            DockBeside(panel, host, preferred, fallback, top);
+        }
+
         // Reads the protected `m_InstanceID` field declared on WorldInfoPanel (walks
         // the base-type chain). Returns default(InstanceID) on failure.
         internal static InstanceID GetInstanceID(UIComponent panelComponent, object panelScript)

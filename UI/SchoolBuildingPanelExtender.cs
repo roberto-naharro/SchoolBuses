@@ -68,13 +68,7 @@ namespace SchoolBuses.UI
             }
 
             if (!_panel.isVisible) _panel.Show();
-            // CityServiceWorldInfoPanel's component origin sits above its visible window,
-            // so a child docked at y=0 floats too high. Offset down to align with the
-            // building panel's title bar (IPT uses the same workaround on this panel).
-            // Falls back to the LEFT side, clamped on screen, when the right side would clip
-            // (UI Resolution / panel near the screen edge).
-            PanelUtil.DockBeside(_panel, _wip.component,
-                _wip.component.width + 1f, -_panel.width - 1f, TitleBarOffset);
+            DockToPanel();
 
             int lineCount = SchoolLineRegistry.GetLinesForSchool(buildingId).Count;
             bool buildingChanged = buildingId != _cachedBuilding;
@@ -94,6 +88,22 @@ namespace SchoolBuses.UI
                 _cachedLineCount = lineCount;
                 Refresh(buildingId);
             }
+        }
+
+        // CityServiceWorldInfoPanel's component origin sits above its visible window, so a child
+        // docked at y=0 floats too high; TitleBarOffset drops it to align with the title bar.
+        private void DockToPanel()
+        {
+            // Default side is RIGHT (falls back to the left, clamped on screen). When TLM is present
+            // its UI sits beside the window, so as a first-approach default we keep our panel on the
+            // RIGHT but push it DOWN by the window height + 50px, leaving the area next to the window
+            // free. A partner mod can override the side / offset via SchoolBusBridge.SetPanelSide /
+            // SetPanelTopOffset.
+            int side = Data.ExternalControl.PanelSide; // 0 = auto, 1 = right, 2 = left
+            float defaultTop = (side == 0 && Integration.TlmBridge.IsPresent)
+                ? _wip.component.height + 50f
+                : TitleBarOffset;
+            PanelUtil.DockBesideManaged(_panel, _wip.component, true, defaultTop);
         }
 
         private void TryInit()
