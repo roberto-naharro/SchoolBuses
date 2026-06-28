@@ -160,7 +160,7 @@ Designed to compose: it never reimplements another mod's loop, every patch is sc
 - **Impatient Commuters:** School Buses registers an exemption (by reflection) so a child waiting for their assigned school bus is exempt from impatience and won't wander off; no-op if it isn't installed.
 - **UI Resolution:** the side panels dock screen-aware (they flip to the other side of the vanilla window and clamp on screen when the preferred side would clip).
 
-For other mods, `SchoolBuses.Integration.SchoolBusBridge` exposes a stable reflection API (`ApiVersion`, `IsProtectedRider`, `IsSchoolStop`, `IsSchoolLine`, `IsSchoolOwnedLine`).
+For other mods, `SchoolBuses.Integration.SchoolBusBridge` exposes a stable, versioned reflection API: read-only **queries** (`IsProtectedRider`, `IsSchoolStop`, `IsSchoolLine`, `IsSchoolOwnedLine`, `GetSchoolBuilding`, `GetApiVersion`) and **control** methods that let a partner mod drive the fleet by calling in rather than School Buses reaching into it — a service-window push (`SetServiceHours`/`ClearServiceHours`) or full spawn control (`SetExternalSpawnControl`, `SetSpawningPaused`, `SetVehicleSupplyEnabled`, global or per line). See [docs/integration.md](docs/integration.md).
 
 ---
 
