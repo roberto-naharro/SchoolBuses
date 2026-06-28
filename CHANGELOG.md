@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.9.0...v1.10.0) (2026-06-28)
+
+
+### Features
+
+* integrate Real Time mod for dynamic school hours management ([be489b4](https://github.com/roberto-naharro/SchoolBuses/commit/be489b4a8e08584a8f50a09d26a7834c4f262f46))
+
 ## [1.9.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.8.0...v1.9.0) (2026-06-28)
 
 
