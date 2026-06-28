@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.10.0...v1.11.0) (2026-06-28)
+
+
+### Features
+
+* enhance docking logic for SchoolLinePanel to accommodate Transport Lines Manager ([78452bb](https://github.com/roberto-naharro/SchoolBuses/commit/78452bbb796d2e75de622431e67c40e1f5e157c5))
+
 ## [1.10.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.9.0...v1.10.0) (2026-06-28)
 
 
