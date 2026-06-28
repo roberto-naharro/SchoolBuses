@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using ColossalFramework;
 using ColossalFramework.UI;
 using SchoolBuses.Data;
@@ -24,11 +25,24 @@ namespace SchoolBuses.UI
         private UIPanel _panel;
         private UICheckBox _schoolCheck;
         private UILabel _schoolLabel;
+        private UIDropDown _schoolDropdown;
         private UIButton _locateButton;
         private UILabel _statsLabel;
         private UILabel _hintLabel;
         private ushort _cachedLine;
         private int _statsTick;
+
+        // Populated when an ambiguous (multi-school) manual line shows the picker; the dropdown's
+        // selected index maps into this list. Null when no picker is shown.
+        private List<SchoolCandidate> _candidates;
+
+        // A school reachable from this line, with the nearest stop that reaches it.
+        private struct SchoolCandidate
+        {
+            public ushort SchoolId;
+            public ushort StopNode;
+            public float SqrDistance;
+        }
 
         private void Update()
         {
@@ -110,6 +124,15 @@ namespace SchoolBuses.UI
             _schoolLabel.width = Width - 52f;
             _schoolLabel.height = 18f;
 
+            // Picker shown ONLY when a manually-flagged line is near more than one school. It sits
+            // in the same row as the school label (which is hidden while the picker is shown).
+            _schoolDropdown = UIHelper.CreateDropDown(_panel);
+            _schoolDropdown.relativePosition = new Vector3(12f, 62f);
+            _schoolDropdown.size = new Vector2(Width - 56f, 24f);
+            _schoolDropdown.tooltip = "This line passes more than one school — pick which one it serves.";
+            _schoolDropdown.eventSelectedIndexChanged += OnSchoolSelected;
+            _schoolDropdown.Hide();
+
             _locateButton = UIHelper.CreateButton(_panel);
             _locateButton.text = string.Empty;
             _locateButton.tooltip = "Show the school on the map";
@@ -155,15 +178,33 @@ namespace SchoolBuses.UI
 
             if (isSchool && data.SchoolBuildingId != 0)
             {
-                _schoolLabel.isVisible = true;
                 _locateButton.isVisible = true;
                 _statsLabel.isVisible = true;
-                _schoolLabel.text = "School: " + BuildingName(data.SchoolBuildingId);
                 _hintLabel.text = data.ModGenerated ? string.Empty : "Manually flagged line.";
+
+                // Offer the school picker only for manually-flagged lines that genuinely pass more
+                // than one school (a generated line serves exactly one school by construction, so it
+                // never gets the picker). With a single school there's nothing to choose — the
+                // "go to school" marker already shows which one — so we just show the label.
+                List<SchoolCandidate> candidates = data.ModGenerated
+                    ? null
+                    : DetectSchools(lineId);
+                if (candidates != null && candidates.Count > 1)
+                {
+                    PopulatePicker(candidates, data.SchoolBuildingId);
+                    _schoolLabel.isVisible = false;
+                }
+                else
+                {
+                    HidePicker();
+                    _schoolLabel.isVisible = true;
+                    _schoolLabel.text = "School: " + BuildingName(data.SchoolBuildingId);
+                }
                 UpdateStats(lineId);
             }
             else
             {
+                HidePicker();
                 _schoolLabel.isVisible = false;
                 _locateButton.isVisible = false;
                 _statsLabel.isVisible = false;
@@ -193,15 +234,17 @@ namespace SchoolBuses.UI
                 return;
             }
 
-            // Auto-detect which school the line serves from its stops.
+            // Auto-detect which school(s) the line serves from its stops. Bind the CLOSEST as the
+            // default; if the line passes more than one school, Refresh will show a picker so the
+            // player can change it.
             Log.DebugLog("User flagging line " + lineId + " as school line — detecting school…");
-            ushort schoolId, schoolStop;
-            if (DetectSchool(lineId, out schoolId, out schoolStop))
+            List<SchoolCandidate> candidates = DetectSchools(lineId);
+            if (candidates.Count > 0)
             {
-                Log.DebugLog("Detected school " + schoolId + " at stop " + schoolStop + " for line " + lineId);
-                SchoolLineRegistry.Register(lineId, new SchoolLineData(schoolId, schoolStop, false));
-                // School transport is free for students (field write belongs on the sim thread).
-                Singleton<SimulationManager>.instance.AddAction(() => SchoolFares.ApplyFree(lineId));
+                SchoolCandidate best = candidates[0]; // closest (DetectSchools returns sorted)
+                Log.DebugLog("Detected " + candidates.Count + " school(s) for line " + lineId
+                    + "; binding closest " + best.SchoolId + " at stop " + best.StopNode);
+                BindSchool(lineId, best);
                 _cachedLine = 0;
             }
             else
@@ -215,6 +258,54 @@ namespace SchoolBuses.UI
             }
         }
 
+        // Binds the line to a chosen school (manual flag) and makes it free for students.
+        private void BindSchool(ushort lineId, SchoolCandidate cand)
+        {
+            SchoolLineRegistry.Register(lineId, new SchoolLineData(cand.SchoolId, cand.StopNode, false));
+            // School transport is free for students (field write belongs on the sim thread).
+            Singleton<SimulationManager>.instance.AddAction(() => SchoolFares.ApplyFree(lineId));
+        }
+
+        // Fills and shows the school picker (one entry per candidate school, nearest first) with
+        // `selectedSchool` selected. Caller guarantees candidates.Count > 1.
+        private void PopulatePicker(List<SchoolCandidate> candidates, ushort selectedSchool)
+        {
+            _candidates = candidates;
+            var items = new string[candidates.Count];
+            int selected = 0;
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                items[i] = BuildingName(candidates[i].SchoolId);
+                if (candidates[i].SchoolId == selectedSchool)
+                    selected = i;
+            }
+
+            _schoolDropdown.eventSelectedIndexChanged -= OnSchoolSelected;
+            _schoolDropdown.items = items;
+            _schoolDropdown.selectedIndex = selected;
+            _schoolDropdown.eventSelectedIndexChanged += OnSchoolSelected;
+            _schoolDropdown.Show();
+        }
+
+        private void HidePicker()
+        {
+            if (_schoolDropdown != null)
+                _schoolDropdown.Hide();
+            _candidates = null;
+        }
+
+        private void OnSchoolSelected(UIComponent c, int index)
+        {
+            ushort lineId = CurrentLine();
+            if (lineId == 0 || _candidates == null || index < 0 || index >= _candidates.Count)
+                return;
+            SchoolCandidate cand = _candidates[index];
+            Log.DebugLog("User picked school " + cand.SchoolId + " for line " + lineId);
+            BindSchool(lineId, cand);
+            // Refresh stats/marker against the new school without rebuilding the picker.
+            UpdateStats(lineId);
+        }
+
         private void OnLocateClick(UIComponent c, UIMouseEventParameter p)
         {
             ushort lineId = CurrentLine();
@@ -226,29 +317,34 @@ namespace SchoolBuses.UI
             }
         }
 
-        // Scan the line's stop nodes; bind to the first stop that sits next to a K–12
-        // school. That stop becomes the school stop (homebound boarding point).
-        private bool DetectSchool(ushort lineId, out ushort schoolId, out ushort schoolStop)
+        // Scan ALL the line's stops and collect every distinct K–12 school within range, keeping the
+        // nearest stop that reaches each one. Returned sorted nearest-school-first, so element 0 is
+        // the default binding and a Count > 1 means the line is ambiguous (offer the picker). Each
+        // such stop is a valid school stop (homebound boarding point).
+        private List<SchoolCandidate> DetectSchools(ushort lineId)
         {
-            schoolId = 0;
-            schoolStop = 0;
+            var result = new List<SchoolCandidate>();
 
             TransportManager tm = Singleton<TransportManager>.instance;
             var nodes = Singleton<NetManager>.instance.m_nodes.m_buffer;
             ushort first = tm.m_lines.m_buffer[lineId].m_stops;
             if (first == 0)
-                return false;
+                return result;
 
             ushort stop = first;
             int guard = 0;
             do
             {
-                ushort found = EducationBuildingUtil.FindSchoolNear(nodes[stop].m_position, SchoolSearchRadius);
-                if (found != 0)
+                Vector3 stopPos = nodes[stop].m_position;
+                ushort school = EducationBuildingUtil.FindSchoolNear(stopPos, SchoolSearchRadius);
+                if (school != 0)
                 {
-                    schoolId = found;
-                    schoolStop = stop;
-                    return true;
+                    float sqr = RoadUtil.SqrDistance2D(stopPos, EducationBuildingUtil.GetPosition(school));
+                    int existing = result.FindIndex(x => x.SchoolId == school);
+                    if (existing < 0)
+                        result.Add(new SchoolCandidate { SchoolId = school, StopNode = stop, SqrDistance = sqr });
+                    else if (sqr < result[existing].SqrDistance) // a nearer stop for the same school
+                        result[existing] = new SchoolCandidate { SchoolId = school, StopNode = stop, SqrDistance = sqr };
                 }
                 stop = TransportLine.GetNextStop(stop);
                 if (++guard > 32768)
@@ -256,7 +352,8 @@ namespace SchoolBuses.UI
             }
             while (stop != first && stop != 0);
 
-            return false;
+            result.Sort((a, b) => a.SqrDistance.CompareTo(b.SqrDistance));
+            return result;
         }
 
         private ushort CurrentLine()

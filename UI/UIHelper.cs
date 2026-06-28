@@ -96,5 +96,59 @@ namespace SchoolBuses.UI
             l.wordWrap = true;
             return l;
         }
+
+        // A vanilla-style dropdown (the standard CS1 modding recipe: dropdown + trigger button
+        // wired together). Used to let the player pick which school an ambiguous line serves.
+        internal static UIDropDown CreateDropDown(UIComponent parent)
+        {
+            UIDropDown dd = parent.AddUIComponent<UIDropDown>();
+            dd.size = new Vector2(180f, 22f);
+            dd.font = Font;
+            dd.listBackground = "GenericPanelLight";
+            dd.itemHeight = 20;
+            dd.itemHover = "ListItemHover";
+            dd.itemHighlight = "ListItemHighlight";
+            dd.normalBgSprite = "ButtonMenu";
+            dd.disabledBgSprite = "ButtonMenuDisabled";
+            dd.hoveredBgSprite = "ButtonMenuHovered";
+            dd.focusedBgSprite = "ButtonMenu";
+            dd.listWidth = 180;
+            dd.listHeight = 300;
+            dd.foregroundSpriteMode = UIForegroundSpriteMode.Stretch;
+            dd.popupColor = new Color32(45, 52, 61, 255);
+            dd.popupTextColor = new Color32(200, 200, 200, 255);
+            dd.zOrder = 1;
+            dd.textScale = 0.74f;
+            dd.verticalAlignment = UIVerticalAlignment.Middle;
+            dd.horizontalAlignment = UIHorizontalAlignment.Left;
+            dd.textFieldPadding = new RectOffset(8, 0, 5, 0);
+            dd.itemPadding = new RectOffset(8, 0, 2, 0);
+            dd.textColor = White;
+            dd.disabledTextColor = new Color32(120, 120, 120, 255);
+
+            UIButton button = dd.AddUIComponent<UIButton>();
+            dd.triggerButton = button;
+            button.text = string.Empty;
+            button.size = dd.size;
+            button.relativePosition = Vector3.zero;
+            button.textVerticalAlignment = UIVerticalAlignment.Middle;
+            button.textHorizontalAlignment = UIHorizontalAlignment.Left;
+            button.normalFgSprite = "IconDownArrow";
+            button.hoveredFgSprite = "IconDownArrowHovered";
+            button.pressedFgSprite = "IconDownArrowPressed";
+            button.focusedFgSprite = "IconDownArrowFocused";
+            button.disabledFgSprite = "IconDownArrowDisabled";
+            button.foregroundSpriteMode = UIForegroundSpriteMode.Fill;
+            button.horizontalAlignment = UIHorizontalAlignment.Right;
+            button.verticalAlignment = UIVerticalAlignment.Middle;
+            button.zOrder = 0;
+
+            dd.eventSizeChanged += (c, t) =>
+            {
+                button.size = t;
+                dd.listWidth = (int)t.x;
+            };
+            return dd;
+        }
     }
 }
