@@ -92,6 +92,18 @@ namespace SchoolBuses
             foreach (UIComponent ctl in new[] { startHour, endHour })
                 ShrinkLabel(ctl);
 
+            // If a partner mod is driving the schedule (advanced external spawn control, or a pushed
+            // service window), the player's hours are overridden — disable these controls and say so.
+            if (Data.ExternalControl.ExternalControlEngaged || Data.ExternalControl.HasServiceHours)
+            {
+                foreach (UIComponent ctl in new[] { restrictHours, startHour, endHour })
+                {
+                    ctl.isEnabled = false;
+                    ctl.tooltip = "School-bus spawning is currently controlled by another mod, "
+                        + "so this setting is disabled.";
+                }
+            }
+
             var hideLines = (UIComponent)general.AddCheckbox("Hide school lines from non-students (route planning)",
                 s.HideLinesFromNonStudents,
                 v => { Settings.Instance.HideLinesFromNonStudents = v; Settings.Save(); });

@@ -102,11 +102,15 @@ namespace SchoolBuses.Routing
                 new SchoolLineData(schoolId, schoolStopNode, true));
 
             // Default the line to a school-bus model via the vanilla per-line selector
-            // (non-destructive; overridable by vanilla tools or IPTE).
+            // (non-destructive; overridable by the vanilla vehicle selector or IPTE at any time).
+            // Set ONLY here, never on regenerate, so a player's chosen bus model survives a regen.
             VehicleUtil.ApplyDefaultSchoolBus(lineId);
 
-            // Pin to exactly one bus via IPT if installed (deterministic regardless of line
-            // length); the m_budget above already yields ~1 bus when IPT is absent.
+            // Seed the bus count at 1 via IPTE if installed (avoids IPTE's new-line 0-bus default);
+            // the m_budget above already yields ~1 bus when IPTE is absent. The player can change the
+            // count afterward (IPTE count / budget) and SchoolDepot supplies whatever the line's
+            // target count is (see SchoolDepot.Tick) — but a regenerate resets it to 1, since the
+            // new route makes the old count meaningless.
             IpteBridge.TrySetVehicleCount(lineId, 1);
 
             // Name it "<school> - <street in front of the school>" (+ " - n" for a numbered route).
@@ -122,7 +126,9 @@ namespace SchoolBuses.Routing
             result.Success = true;
             result.LineId = lineId;
             // With school-as-depot the school supplies the bus, so a missing city depot is fine.
-            result.NoDepot = !Settings.Instance.SpawnFromSchool && !HasBusDepotInArea();
+            // When TLM is present school-as-depot is off (SchoolDepot.Active == false), so the line
+            // does need a real depot — warn if none.
+            result.NoDepot = !SchoolDepot.Active && !HasBusDepotInArea();
             return result;
         }
 
@@ -174,13 +180,19 @@ namespace SchoolBuses.Routing
             Log.DebugLog("Regenerated line " + lineId + " in place with " + index
                 + " stops; school stop node = " + schoolStopNode);
 
+            // Regenerate rebuilds the ROUTE (stops move to follow where students now live), so a
+            // custom vehicle COUNT no longer maps to the new route — reset it to the 1-bus default.
+            // The chosen vehicle MODEL is deliberately NOT reassigned here, so a player's bus choice
+            // survives the regen.
             IpteBridge.TrySetVehicleCount(lineId, 1);
             LineFinalizer.Schedule(lineId);
 
             result.Success = true;
             result.LineId = lineId;
             // With school-as-depot the school supplies the bus, so a missing city depot is fine.
-            result.NoDepot = !Settings.Instance.SpawnFromSchool && !HasBusDepotInArea();
+            // When TLM is present school-as-depot is off (SchoolDepot.Active == false), so the line
+            // does need a real depot — warn if none.
+            result.NoDepot = !SchoolDepot.Active && !HasBusDepotInArea();
             return result;
         }
 

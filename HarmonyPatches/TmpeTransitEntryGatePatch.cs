@@ -113,14 +113,31 @@ namespace SchoolBuses.HarmonyPatches
         // parameter name, their Ext* struct parameters are simply not bound.
         private static void RecordOwnerPostfix(ref CitizenInstance instanceData, bool __result)
         {
-            if (__result && instanceData.m_path != 0)
-                Data.PathOwnership.Set(instanceData.m_path, instanceData.m_citizen);
+            // Runs inside TM:PE — never let an exception escape into its code.
+            if (TransitGate.Failed)
+                return;
+            try
+            {
+                if (__result && instanceData.m_path != 0)
+                    Data.PathOwnership.Set(instanceData.m_path, instanceData.m_citizen);
+            }
+            catch (Exception ex)
+            {
+                TransitGate.MarkFailed("TM:PE StartPathFind owner record", ex);
+            }
         }
 
         // Bound onto CustomPathManager.CustomReleasePath(uint unit) — TM:PE's real release funnel.
         private static void ClearOwnerPostfix(uint unit)
         {
-            Data.PathOwnership.Clear(unit);
+            try
+            {
+                Data.PathOwnership.Clear(unit);
+            }
+            catch (Exception ex)
+            {
+                TransitGate.MarkFailed("TM:PE CustomReleasePath owner clear", ex);
+            }
         }
 
         // Bound by Harmony onto CustomPathFind.ProcessItemPublicTransport. Parameter names match

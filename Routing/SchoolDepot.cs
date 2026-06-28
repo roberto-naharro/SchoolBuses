@@ -24,9 +24,27 @@ namespace SchoolBuses.Routing
         // line waits at most ~8 in-game minutes for its bus).
         private const uint TickMask = 0x1FF;
 
+        // School-as-depot — and with it our own service-hours spawn/despawn — is active only when
+        // the feature is on AND Transport Lines Manager is NOT present (auto-detection fallback, kept
+        // until TLM calls SetVehicleSupplyEnabled(false) itself). Per the TLM author: when TLM is
+        // enabled it owns the vehicle count, spawning and despawning, so we must not also spawn or
+        // they fight. Our students-only boarding rule still applies on those lines either way.
+        internal static bool Active
+        {
+            get { return Settings.Instance.SpawnFromSchool && !TlmBridge.IsPresent; }
+        }
+
+        // Whether THE SCHOOL supplies a specific line right now: the feature is active AND a partner
+        // mod has not disabled supply for it (SchoolBusBridge.SetVehicleSupplyEnabled). When false,
+        // city depots / a line manager serve the line instead.
+        internal static bool SuppliesLine(ushort lineId)
+        {
+            return Active && Data.ExternalControl.IsVehicleSupplyEnabled(lineId);
+        }
+
         internal static void Tick(uint frameIndex)
         {
-            if (!Settings.Instance.SpawnFromSchool)
+            if (!Active)
                 return;
             if ((frameIndex & TickMask) != 0)
                 return;
@@ -37,8 +55,8 @@ namespace SchoolBuses.Routing
             foreach (ushort lineId in SchoolLineRegistry.GetAllLineIds())
             {
                 SchoolLineData data;
-                if (!SchoolLineRegistry.TryGet(lineId, out data) || !data.ModGenerated)
-                    continue; // manual lines keep their vanilla depot supply
+                if (!SchoolLineRegistry.TryGet(lineId, out data))
+                    continue; // the school is the depot for EVERY school line (generated or manual)
                 if ((lines[lineId].m_flags & TransportLine.Flags.Created) == TransportLine.Flags.None)
                     continue;
                 if (!lines[lineId].Complete)
@@ -54,23 +72,33 @@ namespace SchoolBuses.Routing
                               // Vanilla day/night despawn handles the existing bus; we just stop the
                               // respawn.
 
-                if (!WithinServiceHours())
+                if (!SpawningOpenNow(lineId))
                 {
-                    // Outside the configured service window. SOFT end-of-service: we do NOT yank a
-                    // bus off the road (that vanishes any students aboard). The boarding gate stops
-                    // a closed line taking on new riders — including at the school stop — so a
-                    // running bus just finishes its loop, drops everyone, and we release it ONLY
-                    // once it is EMPTY and back at the school. We also don't respawn until the window
-                    // reopens. With Real Time this follows its school hours (same clock we read).
+                    // Line is CLOSED right now — outside the service window, paused by a partner mod,
+                    // or its supply handed to depots/TLM. SOFT end-of-service: we do NOT yank a bus
+                    // off the road (that vanishes any students aboard). The boarding gate stops a
+                    // closed line taking on new riders — including at the school stop — so a running
+                    // bus just finishes its loop, drops everyone, and we release it ONLY once it is
+                    // EMPTY and back at the school. We also don't respawn until it reopens.
                     if (lines[lineId].m_vehicles != 0)
                         ReleaseFinishedVehicles(lineId, data.SchoolStopNode, lines);
                     continue;
                 }
 
-                if (lines[lineId].CountVehicles(lineId) > 0)
-                    continue; // already supplied (one bus per route)
-
-                TrySpawn(lineId, data.SchoolBuildingId, lines);
+                // Behave as a NORMAL DEPOT: keep the line topped up to its target vehicle count,
+                // spawning from the school. The target is vanilla CalculateTargetVehicleCount (which
+                // the line budget — and IPTE/TLM when present — drive), so a generated short route
+                // sits at ~1 bus while a hand-built manual line gets as many buses as its budget
+                // asks for. We only ADD buses; the game/over-budget logic retires any surplus.
+                int target = lines[lineId].CalculateTargetVehicleCount();
+                int have = lines[lineId].CountVehicles(lineId);
+                int spawnGuard = 0;
+                while (have < target && spawnGuard++ < 32)
+                {
+                    if (!TrySpawn(lineId, data.SchoolBuildingId, lines))
+                        break; // spawn failed (vehicle limit, no spawn point) — try again next tick
+                    have++;
+                }
             }
         }
 
@@ -86,45 +114,58 @@ namespace SchoolBuses.Routing
             return (line.m_flags & disabledNow) == TransportLine.Flags.None;
         }
 
-        // Margin (hours) added around Real Time's school hours so buses are already running for the
-        // pre-school pickup and the after-school drop-off — kids commute around the bell, not only
-        // strictly between SchoolBegin and SchoolEnd. (Only applied when reading Real Time's hours;
-        // the player's own start/end option is taken literally.)
-        private const float ServiceMarginHours = 1.5f;
-
-        // Whether school service is OPEN right now (the configured window, or Real Time's school
-        // hours when present). Public so the boarding gate can refuse new riders while closed, so a
-        // winding-down bus can empty out. Day/night is a separate per-line gate (ActiveNow).
-        internal static bool ServiceOpenNow()
+        // Whether a line should be SPAWNING (and topped up) right now — used by Tick. A line is
+        // closed when its supply has been handed to depots/TLM, when a partner mod has paused it
+        // (advanced external control, global or per-line), or when it is outside the service window
+        // (simple path / player option). Closed → wind the bus down (soft despawn), don't respawn.
+        internal static bool SpawningOpenNow(ushort lineId)
         {
+            if (!Data.ExternalControl.IsVehicleSupplyEnabled(lineId))
+                return false; // supply handed over — drain our buses so depots/TLM can take over
+            if (Data.ExternalControl.ExternalControlEngaged)
+                return !Data.ExternalControl.IsSpawningPaused(lineId);
             return WithinServiceHours();
         }
 
-        // Whether school buses may run RIGHT NOW under the configured service window. When Real Time
-        // is installed it is the SOURCE OF TRUTH for the hours (read via RealTimeBridge, widened by
-        // ServiceMarginHours); otherwise the player's own start/end option is used. Either way the
-        // comparison is against the game clock (SimulationManager.m_currentGameTime — the clock Real
-        // Time slows), so it lines up with school hours. Off (RestrictServiceHours == false) = any time.
+        // Whether the boarding gate should let new riders onto a line right now. Public so a CLOSED
+        // line refuses boarders and its winding-down bus can empty out. We only gate boarding on
+        // lines WE actually run: if the feature is off, TLM is present, or supply for the line was
+        // handed over, boarding is not ours to block (return true). Day/night is a separate per-line
+        // gate (ActiveNow).
+        internal static bool ServiceOpenNow(ushort lineId)
+        {
+            if (!SuppliesLine(lineId))
+                return true; // not our fleet → don't gate its boarding by our schedule
+            if (Data.ExternalControl.ExternalControlEngaged)
+                return !Data.ExternalControl.IsSpawningPaused(lineId);
+            return WithinServiceHours();
+        }
+
+        // Whether school buses may run RIGHT NOW under the service window. The window comes from a
+        // PARTNER MOD if one is driving it (e.g. Real Time pushes its hours via
+        // SchoolBusBridge.SetServiceHours — we never read its internals), otherwise from the player's
+        // own start/end option. Either way the comparison is against the game clock
+        // (SimulationManager.m_currentGameTime — the clock Real Time slows), so it tracks school
+        // hours. No window in force (no override, RestrictServiceHours off) = run any time of day.
         private static bool WithinServiceHours()
         {
-            if (!Settings.Instance.RestrictServiceHours)
-                return true;
-
-            System.DateTime now = Singleton<SimulationManager>.instance.m_currentGameTime;
-            float hour = now.Hour + now.Minute / 60f;
-
             float start, end;
-            float rtBegin, rtEnd;
-            if (RealTimeBridge.TryGetSchoolHours(out rtBegin, out rtEnd))
+            if (Data.ExternalControl.TryGetServiceHours(out start, out end))
             {
-                start = rtBegin - ServiceMarginHours;
-                end = rtEnd + ServiceMarginHours;
+                // A partner mod owns the window — use it verbatim.
             }
-            else
+            else if (Settings.Instance.RestrictServiceHours)
             {
                 start = Settings.Instance.ServiceStartHour;
                 end = Settings.Instance.ServiceEndHour;
             }
+            else
+            {
+                return true; // no window in force
+            }
+
+            System.DateTime now = Singleton<SimulationManager>.instance.m_currentGameTime;
+            float hour = now.Hour + now.Minute / 60f;
             return HourInWindow(hour, start, end);
         }
 
@@ -175,28 +216,31 @@ namespace SchoolBuses.Routing
             }
         }
 
-        private static void TrySpawn(ushort lineId, ushort schoolId, TransportLine[] lines)
+        // Spawns ONE bus for the line from the school (replays the DepotAI supply sequence with the
+        // school as source). Returns true on success, false if it could not spawn (so the caller's
+        // top-up loop stops and retries next tick).
+        private static bool TrySpawn(ushort lineId, ushort schoolId, TransportLine[] lines)
         {
             if (schoolId == 0)
-                return;
+                return false;
             var buildings = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
             if ((buildings[schoolId].m_flags & Building.Flags.Created) == Building.Flags.None)
-                return; // school demolished — the depot block also lifts, vanilla depots take over
+                return false; // school demolished — the depot block also lifts, vanilla depots take over
 
             TransportInfo lineInfo = lines[lineId].Info;
             if (lineInfo == null)
-                return;
+                return false;
 
             // Same vehicle resolution as DepotAI: the line's selected vehicle first (we set the
             // school bus there), then any matching bus prefab.
             VehicleInfo vehicleInfo = lines[lineId].GetLineVehicle(lineId)
                 ?? VehicleUtil.FindSchoolBusInfo();
             if (vehicleInfo == null)
-                return;
+                return false;
 
             BuildingInfo schoolInfo = buildings[schoolId].Info;
             if (schoolInfo == null || schoolInfo.m_buildingAI == null)
-                return;
+                return false;
 
             SimulationManager sm = Singleton<SimulationManager>.instance;
             Vector3 spawnPos, spawnTarget;
@@ -210,7 +254,7 @@ namespace SchoolBuses.Routing
             {
                 Log.Warning("SchoolDepot: CreateVehicle failed for line " + lineId
                     + " (vehicle limit reached?)");
-                return;
+                return false;
             }
 
             var vehicles = vm.m_vehicles.m_buffer;
@@ -223,6 +267,7 @@ namespace SchoolBuses.Routing
 
             Log.Info("SchoolDepot: spawned bus " + vehicleId + " for line " + lineId
                 + " from school " + schoolId);
+            return true;
         }
     }
 }

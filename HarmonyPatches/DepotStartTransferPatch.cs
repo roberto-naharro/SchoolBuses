@@ -1,5 +1,6 @@
 using HarmonyLib;
 using SchoolBuses.Data;
+using SchoolBuses.Routing;
 
 namespace SchoolBuses.HarmonyPatches
 {
@@ -9,14 +10,17 @@ namespace SchoolBuses.HarmonyPatches
     // line id), so when the offer targets one of our mod-generated school lines we skip the
     // original — the depot ignores it and SchoolDepot spawns from the school instead.
     //
-    // Scoped: anything that isn't a registered, mod-generated school line (with its school still
-    // standing and the feature enabled) runs vanilla. Manual school lines keep depot supply.
+    // Scoped: anything that isn't a registered school line (with its school still standing and the
+    // feature enabled) runs vanilla. The school is the depot for EVERY school line — generated or
+    // manually flagged — so city depots are skipped for both. When TLM is present
+    // (SchoolDepot.Active == false) we do NOT block depots — TLM owns supply then, so a depot must
+    // be free to serve the line.
     [HarmonyPatch(typeof(DepotAI), "StartTransfer")]
     internal static class DepotStartTransferPatch
     {
         private static bool Prefix(TransferManager.TransferReason reason, TransferManager.TransferOffer offer)
         {
-            if (!Settings.Instance.Enabled || !Settings.Instance.SpawnFromSchool)
+            if (!Settings.Instance.Enabled || !SchoolDepot.Active)
                 return true;
 
             ushort lineId = offer.TransportLine;
@@ -24,7 +28,12 @@ namespace SchoolBuses.HarmonyPatches
                 return true;
 
             SchoolLineData data;
-            if (!SchoolLineRegistry.TryGet(lineId, out data) || !data.ModGenerated)
+            if (!SchoolLineRegistry.TryGet(lineId, out data))
+                return true;
+
+            // A partner mod may have handed this line's supply back to depots/TLM
+            // (SetVehicleSupplyEnabled(false)) — then the depot MUST be free to serve it.
+            if (!SchoolDepot.SuppliesLine(lineId))
                 return true;
 
             // If the school was demolished the school can't supply the line any more — let the

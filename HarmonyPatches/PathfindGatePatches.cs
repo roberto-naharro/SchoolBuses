@@ -40,8 +40,17 @@ namespace SchoolBuses.HarmonyPatches
     {
         private static void Postfix(ref CitizenInstance citizenData, bool __result)
         {
-            if (__result && citizenData.m_path != 0)
-                PathOwnership.Set(citizenData.m_path, citizenData.m_citizen);
+            if (TransitGate.Failed)
+                return;
+            try
+            {
+                if (__result && citizenData.m_path != 0)
+                    PathOwnership.Set(citizenData.m_path, citizenData.m_citizen);
+            }
+            catch (System.Exception ex)
+            {
+                TransitGate.MarkFailed("StartPathFind owner record", ex);
+            }
         }
     }
 
@@ -52,7 +61,14 @@ namespace SchoolBuses.HarmonyPatches
     {
         private static void Postfix(uint unit)
         {
-            PathOwnership.Clear(unit);
+            try
+            {
+                PathOwnership.Clear(unit);
+            }
+            catch (System.Exception ex)
+            {
+                TransitGate.MarkFailed("ReleasePath owner clear", ex);
+            }
         }
     }
 
@@ -69,12 +85,46 @@ namespace SchoolBuses.HarmonyPatches
             DbgAllowedStudents, DbgBlocked, DbgUnknownOwner;
         internal static volatile int DbgLastLine; // last nonzero line id the gate resolved
 
+        // Self-disable. We run INSIDE the game's (and TM:PE's) pathfinder; a throw here must never
+        // corrupt the host. If the gate — or its unit→citizen bookkeeping — ever throws, we turn the
+        // whole "hide lines from non-students" feature OFF for the session and FAIL OPEN (lines
+        // become visible again). Students-only is still enforced at boarding, so we only lose the
+        // pathfinding-level nicety. Volatile: set/read across pathfind worker threads.
+        private static volatile bool _failed;
+        internal static bool Failed => _failed;
+
+        // Record the first failure, log it once, and disable the gate.
+        internal static void MarkFailed(string where, System.Exception ex)
+        {
+            if (_failed)
+                return;
+            _failed = true;
+            Util.Log.Warning("School-line pathfind gate disabled for this session after an error in "
+                + where + " — non-students may see school lines again, but boarding rejection still "
+                + "keeps them off the bus: " + ex);
+        }
+
         // True = run the original (line visible); false = skip (line does not exist for this trip).
         // `stopNodeId` is the STOP NODE being expanded (both pathfinders pass it as a parameter) —
         // the same node our boarding/eviction code resolves lines from. (First version read
         // m_transportLine off the transit lane's segment start node instead: telemetry showed that
         // is NEVER set — 200k gate entries, zero line hits — so the gate was silently transparent.)
         internal static bool Allow(ushort stopNodeId, uint pathUnit, bool fromTmpe)
+        {
+            if (_failed)
+                return true; // self-disabled after an earlier error → fail open
+            try
+            {
+                return AllowCore(stopNodeId, pathUnit, fromTmpe);
+            }
+            catch (System.Exception ex)
+            {
+                MarkFailed(fromTmpe ? "TM:PE transit gate" : "transit gate", ex);
+                return true;
+            }
+        }
+
+        private static bool AllowCore(ushort stopNodeId, uint pathUnit, bool fromTmpe)
         {
             bool dbg = Util.Log.DebugEnabled;
             if (dbg)

@@ -20,8 +20,9 @@ bool IsSchoolStop(ushort stopNodeId);
 // True if the line is a registered school line (generated OR manually flagged).
 bool IsSchoolLine(ushort lineId);
 
-// True if this line's bus is supplied by its school (school-as-depot): mod-generated,
-// feature enabled, school still standing. City depots never serve such a line.
+// True if this line's bus is supplied by its school (school-as-depot): feature enabled, school
+// still standing, and supply for the line has not been handed back to depots/TLM. City depots
+// never serve such a line.
 bool IsSchoolOwnedLine(ushort lineId);
 
 // School (Education building) this line serves, or 0 if it is not a registered school line.
@@ -29,9 +30,13 @@ bool IsSchoolOwnedLine(ushort lineId);
 // re-validated, so check Building.Flags.Created if you need a guaranteed-live building.
 ushort GetSchoolBuilding(ushort lineId);
 
-// Integration contract version (currently 3). Also confirms the API is present.
+// Integration contract version (currently 5). Also confirms the API is present.
 int GetApiVersion();
 ```
+
+There is also a small **control** surface (added in v5) that lets a partner mod *drive* the
+school-bus fleet by calling School Buses, instead of School Buses reaching into the partner. See
+[Driving the fleet externally](#driving-the-fleet-externally) below.
 
 ### Calling it by reflection (no hard dependency)
 
@@ -92,31 +97,89 @@ one is set, and when:
 So directionality is a *consequence* of the scheduler setting the target; School Buses just reads the
 result. There is nothing to add on either side for this.
 
-### Running on a schedule: built in, reads the in-game clock
+### Running on a schedule
 
-School Buses **does** now have an optional concept of service hours, used only to decide when a school
-line's buses are allowed to *spawn* (it does not touch eligibility or directionality above). This is
-self-contained and needs **no integration on your side**:
+School Buses has its own service-hours option (start/end hour, compared against
+`SimulationManager.m_currentGameTime`, so it tracks Real Time's slowed clock), which the **player**
+sets. School Buses deliberately does **not** read Real Time's config — instead, if you want to own
+the timing, you *push* it to School Buses through the control API (`SetServiceHours`, or the advanced
+`PauseSpawning`/`ResumeSpawning`). That way Real Time can rename or refactor its internals freely
+without ever breaking School Buses. See the next section.
 
-- A **day-only** switch parks a school line's buses at night (it gates on
-  `SimulationManager.m_isNightTime`, the same flag the vanilla day/night line toggle uses).
-- A **custom service window** (start/end hour in the mod options) lets buses spawn only inside that
-  range. It reads `SimulationManager.m_currentGameTime` directly, so it tracks **whatever clock the
-  game is running** — including Real Time's slowed clock — with no bridge or API call. The window
-  wraps correctly across midnight (`start > end`).
+This mirrors the existing Impatient Commuters integration: the query contract above is stable and
+versioned (`GetApiVersion()` returns `5`).
 
-Because it reads the live game clock rather than coupling to Real Time, it is correct whether Real
-Time is installed or not, and there is nothing for Real Time (or TLM) to do. If you would rather drive
-vehicle counts by hour yourself, **Transport Lines Manager's per-hour budget** still works on these
-lines (set the line to 0 vehicles off-hours); the two are independent.
+## Driving the fleet externally
 
-This mirrors the existing Impatient Commuters integration and needs no changes on the School Buses
-side: the contract above is stable and versioned (`GetApiVersion()` returns `3`).
+School Buses runs its generated/flagged school lines from the school itself (school-as-depot) and
+schedules them with the player's service-hours option. A partner mod can **take that over** by calling
+School Buses — School Buses never reaches into the partner, so the partner owns its own internals.
+
+All control methods are `public static` on `SchoolBusBridge`, take/return simple types (so they bind
+cleanly by reflection), and **return a `bool` status instead of throwing**: `true` = applied, `false`
+= ignored (wrong mode, or unknown/invalid input). A partner can never crash School Buses but still
+learns whether the call took effect.
+
+There are two mutually-exclusive styles.
+
+### Simple: push a service window
+
+Drive the single on/off window directly. Valid only while advanced control (below) is **not** engaged.
+
+```csharp
+// Buses run only within [startHour, endHour) on the game clock (0-24, wraps past midnight).
+// Overrides the player's own service-hours option. Returns false if advanced control is engaged
+// or the hours are NaN/Infinity.
+bool SetServiceHours(float startHour, float endHour);
+
+// Hand the window back to the player's option.
+bool ClearServiceHours();
+
+// True while an external window is in force.
+bool HasExternalServiceHours();
+```
+
+For a fixed school day this is all Real Time needs: call `SetServiceHours(begin, end)` whenever the
+player changes the hours.
+
+### Advanced: full spawn control
+
+For arbitrary schedules (multiple ranges, event-driven) or to hand the whole fleet to a line manager,
+**engage external control first**, then drive it. While engaged, the player's service-hours option
+(and `SetServiceHours`) are disabled — the mod's options screen shows a "controlled by another mod"
+note — and the methods below become active (they return `false` until control is engaged).
+
+```csharp
+// Master flag. Returns the resulting state (true = engaged).
+bool SetExternalSpawnControl(bool engaged);
+bool IsExternalSpawnControl();
+
+// Pause/resume spawning. Paused = no new buses spawn and running buses finish their route and park
+// at the school (soft despawn). Call on your own open/close events for any schedule. The (lineId,…)
+// overload sets one line and overrides the global value for it.
+bool SetSpawningPaused(bool paused);
+bool SetSpawningPaused(ushort lineId, bool paused);
+
+// Disable the SCHOOL supplying buses (the school-as-depot). When false, School Buses stops
+// spawning/despawning AND stops blocking city depots, so depots / TLM serve the line like a normal
+// line. The (lineId,…) overload does this for one line (e.g. only lines a player set to custom
+// config). The students-only boarding rule still applies regardless.
+bool SetVehicleSupplyEnabled(bool enabled);
+bool SetVehicleSupplyEnabled(ushort lineId, bool enabled);
+
+// Introspection (effective values).
+bool IsSpawningPaused();              // global
+bool IsSpawningPaused(ushort lineId); // per-line override, else global
+bool IsVehicleSupplyEnabled(ushort lineId);
+```
 
 ## For Transport Lines Manager
 
-No integration code is needed. When School Buses detects TLM it **defers line presentation to TLM**:
-it does not set the line's colour or generated name, and it leaves the per-line vehicle budget to TLM
-(TLM seeds that budget from the line's `m_budget`, which School Buses sets to a minimal ~1-bus value,
-so a school line still starts at roughly one bus and you manage it from there in TLM). School Buses'
-only remaining behaviour on those lines is the students-only boarding rule, which TLM does not touch.
+When School Buses detects TLM it **defers line presentation to TLM** (it does not set the line's
+colour or generated name) and leaves the per-line vehicle budget to TLM. Today it also auto-detects
+TLM to step out of the way of vehicle management (so the two don't both spawn). The cleaner, explicit
+path is the control API above: call `SetExternalSpawnControl(true)` then
+`SetVehicleSupplyEnabled(false)` (globally, or per line for just the lines you manage), and School
+Buses hands supply to your depots. Once TLM does that, the internal TLM auto-detection becomes
+redundant and can be removed. School Buses' only remaining behaviour on those lines is the
+students-only boarding rule, which TLM does not touch.
