@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.11.0...v1.12.0) (2026-06-28)
+
+
+### Features
+
+* refactor external control integration for school bus scheduling ([a5f9597](https://github.com/roberto-naharro/SchoolBuses/commit/a5f9597ee4f3f393122e591ade78e7b55473e244))
+
 ## [1.11.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.10.0...v1.11.0) (2026-06-28)
 
 
