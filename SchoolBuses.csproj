@@ -73,6 +73,7 @@
     <Compile Include="Integration\ImpatientCommutersBridge.cs" />
     <Compile Include="Integration\IpteBridge.cs" />
     <Compile Include="Integration\TlmBridge.cs" />
+    <Compile Include="Integration\RealTimeBridge.cs" />
     <Compile Include="HarmonyPatches\TmpeTransitEntryGatePatch.cs" />
     <Compile Include="HarmonyPatches\DespawnProbePatch.cs" />
     <Compile Include="HarmonyPatches\HarmonyId.cs" />

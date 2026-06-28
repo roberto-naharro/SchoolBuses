@@ -1,5 +1,6 @@
 using HarmonyLib;
 using SchoolBuses.Data;
+using SchoolBuses.Routing;
 using SchoolBuses.Util;
 
 namespace SchoolBuses.HarmonyPatches
@@ -27,7 +28,9 @@ namespace SchoolBuses.HarmonyPatches
             ushort lineId = data.m_transportLine;
             SchoolLineData line;
             if (lineId != 0 && SchoolLineRegistry.TryGet(lineId, out line))
-                SchoolBoardingContext.Set(lineId, currentStop, line);
+                // Evaluate the service window once per boarding call (shared by every citizen the
+                // loop considers): when closed, the gate refuses all boarding so the bus empties.
+                SchoolBoardingContext.Set(lineId, currentStop, line, !SchoolDepot.ServiceOpenNow());
             else
                 SchoolBoardingContext.Clear();
         }

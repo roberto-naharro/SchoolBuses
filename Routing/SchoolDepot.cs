@@ -1,5 +1,6 @@
 using ColossalFramework;
 using SchoolBuses.Data;
+using SchoolBuses.Integration;
 using SchoolBuses.Util;
 using UnityEngine;
 
@@ -55,12 +56,14 @@ namespace SchoolBuses.Routing
 
                 if (!WithinServiceHours())
                 {
-                    // Outside the configured service window. The vanilla day/night flag can't
-                    // express arbitrary hours, so we end the run ourselves: release the bus and
-                    // don't respawn until the window reopens. With Real Time this matches school
-                    // hours (the game clock it slows is the same one we read).
-                    if (lines[lineId].CountVehicles(lineId) > 0)
-                        ReleaseLineVehicles(lineId, lines);
+                    // Outside the configured service window. SOFT end-of-service: we do NOT yank a
+                    // bus off the road (that vanishes any students aboard). The boarding gate stops
+                    // a closed line taking on new riders — including at the school stop — so a
+                    // running bus just finishes its loop, drops everyone, and we release it ONLY
+                    // once it is EMPTY and back at the school. We also don't respawn until the window
+                    // reopens. With Real Time this follows its school hours (same clock we read).
+                    if (lines[lineId].m_vehicles != 0)
+                        ReleaseFinishedVehicles(lineId, data.SchoolStopNode, lines);
                     continue;
                 }
 
@@ -83,29 +86,74 @@ namespace SchoolBuses.Routing
             return (line.m_flags & disabledNow) == TransportLine.Flags.None;
         }
 
-        // Whether school buses may run RIGHT NOW under the configured service window. Reads the
-        // game clock (SimulationManager.m_currentGameTime) — the same clock the Real Time mod slows
-        // down — so the window lines up with school hours without any dependency on Real Time. Off
-        // (RestrictServiceHours == false) = run any time of day.
+        // Margin (hours) added around Real Time's school hours so buses are already running for the
+        // pre-school pickup and the after-school drop-off — kids commute around the bell, not only
+        // strictly between SchoolBegin and SchoolEnd. (Only applied when reading Real Time's hours;
+        // the player's own start/end option is taken literally.)
+        private const float ServiceMarginHours = 1.5f;
+
+        // Whether school service is OPEN right now (the configured window, or Real Time's school
+        // hours when present). Public so the boarding gate can refuse new riders while closed, so a
+        // winding-down bus can empty out. Day/night is a separate per-line gate (ActiveNow).
+        internal static bool ServiceOpenNow()
+        {
+            return WithinServiceHours();
+        }
+
+        // Whether school buses may run RIGHT NOW under the configured service window. When Real Time
+        // is installed it is the SOURCE OF TRUTH for the hours (read via RealTimeBridge, widened by
+        // ServiceMarginHours); otherwise the player's own start/end option is used. Either way the
+        // comparison is against the game clock (SimulationManager.m_currentGameTime — the clock Real
+        // Time slows), so it lines up with school hours. Off (RestrictServiceHours == false) = any time.
         private static bool WithinServiceHours()
         {
             if (!Settings.Instance.RestrictServiceHours)
                 return true;
+
             System.DateTime now = Singleton<SimulationManager>.instance.m_currentGameTime;
             float hour = now.Hour + now.Minute / 60f;
-            int start = Settings.Instance.ServiceStartHour;
-            int end = Settings.Instance.ServiceEndHour;
-            if (start == end)
-                return true; // full 24 h
+
+            float start, end;
+            float rtBegin, rtEnd;
+            if (RealTimeBridge.TryGetSchoolHours(out rtBegin, out rtEnd))
+            {
+                start = rtBegin - ServiceMarginHours;
+                end = rtEnd + ServiceMarginHours;
+            }
+            else
+            {
+                start = Settings.Instance.ServiceStartHour;
+                end = Settings.Instance.ServiceEndHour;
+            }
+            return HourInWindow(hour, start, end);
+        }
+
+        // True if `hour` (0–24) falls in [start, end), with both wrapped into 0–24 and the window
+        // allowed to cross midnight (start > end). start == end means the window is always open.
+        private static bool HourInWindow(float hour, float start, float end)
+        {
+            start = Mod24(start);
+            end = Mod24(end);
+            if (Mathf.Approximately(start, end))
+                return true;
             return start < end
                 ? hour >= start && hour < end
                 : hour >= start || hour < end; // window wraps past midnight (unusual for schools)
         }
 
-        // Send a school line's bus off (end of service). Releasing the vehicle is how the line
-        // stops running for a custom window the vanilla day/night flag can't represent. Capture the
-        // next-in-chain before releasing, since the chain changes underneath us.
-        private static void ReleaseLineVehicles(ushort lineId, TransportLine[] lines)
+        private static float Mod24(float h)
+        {
+            h %= 24f;
+            return h < 0f ? h + 24f : h;
+        }
+
+        // SOFT end-of-service: release a school line's bus ONLY once it is EMPTY (every student
+        // dropped off) and has returned to — or is heading back to — the school. A bus still
+        // carrying students keeps running and dropping them at their stops; the boarding gate keeps
+        // it from taking on new riders while closed, so it empties within its loop and finishes the
+        // run at the school instead of vanishing kids mid-route. Capture next-in-chain before any
+        // release, since the chain changes underneath us.
+        private static void ReleaseFinishedVehicles(ushort lineId, ushort schoolStopNode, TransportLine[] lines)
         {
             VehicleManager vm = Singleton<VehicleManager>.instance;
             var vehicles = vm.m_vehicles.m_buffer;
@@ -114,10 +162,17 @@ namespace SchoolBuses.Routing
             while (v != 0 && guard++ < 16384)
             {
                 ushort next = vehicles[v].m_nextLineVehicle;
-                vm.ReleaseVehicle(v);
+                bool empty = vehicles[v].m_transferSize == 0;
+                bool atSchool = (vehicles[v].m_flags & Vehicle.Flags.GoingBack) != (Vehicle.Flags)0
+                    || (schoolStopNode != 0 && vehicles[v].m_targetBuilding == schoolStopNode);
+                if (empty && atSchool)
+                {
+                    vm.ReleaseVehicle(v);
+                    Log.Info("SchoolDepot: line " + lineId
+                        + " closed — empty bus " + v + " finished its run at the school, released");
+                }
                 v = next;
             }
-            Log.Info("SchoolDepot: line " + lineId + " outside service hours — bus released");
         }
 
         private static void TrySpawn(ushort lineId, ushort schoolId, TransportLine[] lines)

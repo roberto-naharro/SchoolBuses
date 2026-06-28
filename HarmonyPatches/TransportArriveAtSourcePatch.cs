@@ -24,6 +24,16 @@ namespace SchoolBuses.HarmonyPatches
             if (!__result || !SchoolBoardingContext.Active)
                 return; // not boarding this hop, or not a school line: leave it alone
 
+            // Service window closed (outside hours): refuse ALL boarding on this school line —
+            // including at the school stop — so a winding-down bus takes on no new riders and can
+            // finish its run empty (then SchoolDepot releases it at the school). We only block
+            // boarding; students already aboard still ride to their stop and get off normally.
+            if (SchoolBoardingContext.ServiceClosed)
+            {
+                __result = false;
+                return;
+            }
+
             bool eligible = CitizenEligibility.IsEligible(
                 citizenData.m_citizen,
                 citizenData.m_targetBuilding,
