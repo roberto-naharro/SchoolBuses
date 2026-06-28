@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.8.0...v1.9.0) (2026-06-28)
+
+
+### Features
+
+* add dropdown UI component for selecting schools in ambiguous lines ([8e17d8c](https://github.com/roberto-naharro/SchoolBuses/commit/8e17d8c2655f42ec537c3289639ff608ff9cb6a8))
+
 ## [1.8.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.7.0...v1.8.0) (2026-06-27)
 
 
