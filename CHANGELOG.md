@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.12.0...v1.13.0) (2026-06-28)
+
+
+### Features
+
+* implement panel placement controls for improved UI integration ([8fe7d38](https://github.com/roberto-naharro/SchoolBuses/commit/8fe7d383aae649cd2948c166b2c5e4367d360534))
+
 ## [1.12.0](https://github.com/roberto-naharro/SchoolBuses/compare/v1.11.0...v1.12.0) (2026-06-28)
 
 
